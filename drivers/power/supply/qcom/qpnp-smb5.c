@@ -452,8 +452,9 @@ static int smb5_parse_dt(struct smb5 *chip) {
       chip->dt.sec_charger_config == POWER_SUPPLY_CHARGER_SEC_PL ||
       chip->dt.sec_charger_config == POWER_SUPPLY_CHARGER_SEC_CP_PL;
 
-  chg->step_chg_enabled =
-      of_property_read_bool(node, "qcom,step-charging-enable");
+  if (!mi_is_ginkgo())
+    chg->step_chg_enabled =
+        of_property_read_bool(node, "qcom,step-charging-enable");
 
   chg->typec_legacy_use_rp_icl =
       of_property_read_bool(node, "qcom,typec-legacy-rp-icl");
@@ -597,8 +598,9 @@ static int smb5_parse_dt(struct smb5 *chip) {
   chg->hw_die_temp_mitigation =
       of_property_read_bool(node, "qcom,hw-die-temp-mitigation");
 
-  chg->hw_connector_mitigation =
-      of_property_read_bool(node, "qcom,hw-connector-mitigation");
+  if (!mi_is_ginkgo())
+    chg->hw_connector_mitigation =
+        of_property_read_bool(node, "qcom,hw-connector-mitigation");
 
   chg->hw_skin_temp_mitigation =
       of_property_read_bool(node, "qcom,hw-skin-temp-mitigation");
@@ -607,8 +609,9 @@ static int smb5_parse_dt(struct smb5 *chip) {
       of_property_read_bool(node, "qcom,en-skin-therm-mitigation");
 
   chg->connector_pull_up = -EINVAL;
-  of_property_read_u32(node, "qcom,connector-internal-pull-kohm",
-                       &chg->connector_pull_up);
+  if (!mi_is_ginkgo())
+    of_property_read_u32(node, "qcom,connector-internal-pull-kohm",
+                         &chg->connector_pull_up);
 
   chg->smb_pull_up = -EINVAL;
   of_property_read_u32(node, "qcom,smb-internal-pull-kohm", &chg->smb_pull_up);
