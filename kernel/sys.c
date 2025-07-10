@@ -596,6 +596,10 @@ error:
  * This function implements a generic ability to update ruid, euid,
  * and suid.  This allows you to implement the 4.4 compatible seteuid().
  */
+#ifdef CONFIG_KSU_SUSFS
+extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+#endif
+
 SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 {
 	struct user_namespace *ns = current_user_ns();
@@ -608,6 +612,11 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 	keuid = make_kuid(ns, euid);
 	ksuid = make_kuid(ns, suid);
 
+#ifdef CONFIG_KSU_SUSFS
+	if (ksu_handle_setresuid(ruid, euid, suid)) {
+		pr_info("Something wrong with ksu_handle_setresuid()/n");
+	}
+#endif
 	if ((ruid != (uid_t) -1) && !uid_valid(kruid))
 		return -EINVAL;
 
@@ -1205,6 +1214,9 @@ static int override_version(struct new_utsname __user *name)
 #endif
 }
 
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+extern void susfs_spoof_uname(struct new_utsname* tmp);
+#endif
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
 	struct new_utsname tmp;
@@ -1213,6 +1225,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 
 	down_read(&uts_sem);
 	memcpy(&tmp, utsname(), sizeof(tmp));
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+	susfs_spoof_uname(&tmp);
+#endif
 	if (is_bpf_spoof_enabled()) {
 		if (current_uid().val == 0 &&
 			(!strncmp(current->comm, "bpfloader", 9) ||
