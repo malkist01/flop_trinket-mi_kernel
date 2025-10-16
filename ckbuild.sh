@@ -199,9 +199,6 @@ else
     echo -e "\nINFO: Overriding default toolchain"
 fi
 
-## Info message
-LINKER="ld.lld"
-
 ## Secrets
 if [[ "$TEST_CHANNEL" == "0" ]]; then
     TELEGRAM_CHAT_ID="$(cat ../chat)"
@@ -520,13 +517,10 @@ CAPTION_BUILD="Build info:
 *Device*: \`${DEVICE} [${CODENAME}]\`
 *Kernel Version*: \`${LINUX_VER}\`
 *Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*Linker*: \`$("${LINKER}" -v | head -n1 \
-      | sed -E 's/\([^)]*\)//g; s/  */ /g; s/^ //; s/ $//')\`
 *Build host*: \`${BUILD_HOST}\`
-*Branch*: \`$(git rev-parse --abbrev-ref HEAD)\`
-*Commit*: [($(git rev-parse HEAD | cut -c -7))]($(echo $KERNEL_URL)/commit/$(git rev-parse HEAD))
-*Build type*: \`$BUILD_TYPE\`
-*Clean build*: \`$([ "$DO_CLEAN" -eq 1 ] && echo Yes || echo No)\`
+*Commit / Branch*: [($(git rev-parse HEAD | cut -c -7))]($(echo $KERNEL_URL)/commit/$(git rev-parse HEAD)) / \`$(git rev-parse --abbrev-ref HEAD)\`
+*Build variant*: \`${CK_TYPE}\` / \`${BUILD_TYPE}$( [ "$DO_CLEAN" -eq 1 ] && echo " (clean)" || echo " (dirty)")\`
+*Timestamp*: \`${DATE}\`
 "
 
 # Functions to send file(s) via Telegram's BOT api.
