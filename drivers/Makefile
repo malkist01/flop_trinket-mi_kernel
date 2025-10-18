@@ -192,4 +192,7 @@ obj-$(CONFIG_ESOC)              += esoc/
 obj-$(CONFIG_GNSS_SIRF)		+= gnsssirf/
 obj-$(CONFIG_GNSS)		+= gnss/
 obj-y += fstabdt_disable/
-obj-$(CONFIG_KSU)		+= kernelsu/kernel/
+
+# Kernel SU variants
+obj-$(CONFIG_KSU_NEXT)		+= kernelsu/kernel/
+obj-$(CONFIG_KSU_SUKI)		+= sukisu/kernel/
