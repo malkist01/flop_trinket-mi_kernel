@@ -37,6 +37,12 @@ if [[ "$build_opts" == *k* ]]; then
     k_param=true
 fi
 
+# Check for SukiSU param
+s_param=false
+if [[ "$build_opts" == *s* ]]; then
+    s_param=true
+fi
+
 first_build_done=false
 
 run_build() {
@@ -74,14 +80,24 @@ fi
 
 # Phase 1: KernelSU Builds
 if $k_param; then
+    ksu_opts="${build_opts//s/}"  # Remove SukiSU flag for KernelSU builds
     for device_name in "${devices_to_process[@]}"; do
-        run_build "$device_name" "$build_opts"
+        run_build "$device_name" "$ksu_opts"
     done
 fi
 
-# Phase 2: Vanilla Builds
-if ! $k_param || ($f_param && $k_param); then
+# Phase 2: SukiSU Builds
+if $s_param; then
+    suki_opts="${build_opts//k/}"  # Remove KernelSU flag for SukiSU builds
+    for device_name in "${devices_to_process[@]}"; do
+        run_build "$device_name" "$suki_opts"
+    done
+fi
+
+# Phase 3: Vanilla Builds
+if (! $k_param && ! $s_param) || ($f_param && ($k_param || $s_param)); then
     vanilla_opts="${build_opts//k/}"
+    vanilla_opts="${vanilla_opts//s/}"
     for device_name in "${devices_to_process[@]}"; do
         run_build "$device_name" "$vanilla_opts"
     done
