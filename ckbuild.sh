@@ -135,6 +135,7 @@ USE_CCACHE=1
 
 ## Parse arguments
 DO_KSU=0
+DO_SUKI=0
 DO_CLEAN=0
 DO_MENUCONFIG=0
 IS_RELEASE=0
@@ -150,6 +151,10 @@ for arg in "$@"; do
     if [[ "$arg" == *k* ]]; then
         echo "INFO: KernelSU enabled"
         DO_KSU=1
+    fi
+    if [[ "$arg" == *s* ]]; then
+        echo "INFO: SukiSU argument passed"
+        DO_SUKI=1
     fi
     if [[ "$arg" == *c* ]]; then
         echo "INFO: clean build enabled"
@@ -177,6 +182,11 @@ for arg in "$@"; do
         DO_FLTO=1
     fi
 done
+
+if [ "$DO_KSU" == "1" ] && [ "$DO_SUKI" == "1" ]; then
+    echo "ERROR: KernelSU and SukiSU are mutually exclusive."
+    exit 1
+fi
 
 DEFCONFIG="$DEFAULT_DEFCONFIG"
 if [[ "$IS_RELEASE" == "1" ]]; then
@@ -221,6 +231,9 @@ CK_TYPE_SHORT=""
 if [[ "$DO_KSU" == "1" ]]; then
     CK_TYPE="KSUNext"
     CK_TYPE_SHORT="KN"
+elif [ "$DO_SUKI" == "1" ]; then
+    CK_TYPE="SukiSU-Ultra"
+    CK_TYPE_SHORT="SSU"
 else
     CK_TYPE="Vanilla"
     CK_TYPE_SHORT="V"
@@ -552,9 +565,9 @@ prep_build() {
 build() {
     mkdir -p out
     if [[ "$DO_REGEN" = "1" ]]; then
-        make O=out ARCH=arm64 "$DEFCONFIG" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") 2>&1 | tee log.txt
+        make O=out ARCH=arm64 "$DEFCONFIG" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") 2>&1 | tee log.txt
     else
-        make O=out ARCH=arm64 "$DEFCONFIG" "$BASE_FRAGMENT" "$FRAGMENT" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") 2>&1 | tee log.txt
+        make O=out ARCH=arm64 "$DEFCONFIG" "$BASE_FRAGMENT" "$FRAGMENT" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") 2>&1 | tee log.txt
     fi
 
     # Delete leftovers
