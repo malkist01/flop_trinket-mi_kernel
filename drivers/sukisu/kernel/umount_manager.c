@@ -4,6 +4,7 @@
 #include <linux/namei.h>
 #include <linux/path.h>
 #include <linux/mount.h>
+#include <linux/fs.h>
 #include <linux/cred.h>
 
 #include "klog.h"
