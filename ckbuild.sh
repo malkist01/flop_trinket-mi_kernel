@@ -593,10 +593,10 @@ build() {
     fi
 
     if [[ "$IS_RELEASE" == "1" ]]; then
-        VERSION_STR="\"-Floppy-$FK_VER-$CK_TYPE_SHORT/release\""
+        VERSION_STR="\"-Floppy-$FK_VER-$CK_TYPE_SHORT-release\""
         VERSION_NOAUTO=1
     else
-        VERSION_STR="\"-Floppy-$FK_VER-$CK_TYPE_SHORT/\""
+        VERSION_STR="\"-Floppy-$FK_VER-$CK_TYPE_SHORT\""
     fi
 
     scripts/config --file "$KDIR/out/.config" --set-val LOCALVERSION "$VERSION_STR"
