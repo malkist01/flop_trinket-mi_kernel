@@ -238,23 +238,23 @@ bool is_modem_dead(void)
 }
 
 /* Hacks */
-static bool init_protection = true;
+static bool no_init_protection = false;
 
-static int __init set_init_protection(char *val)
+static int __init set_no_init_protection(char *val)
 {
-	int tmp = init_protection;
+	int tmp = no_init_protection;
 
 	if (get_option(&val, &tmp)) {
-		init_protection = tmp != 0;
+		no_init_protection = tmp != 0;
 	}
 
 	return 0;
 }
-__setup("init_protection=", set_init_protection);
+__setup("no_init_protection=", set_no_init_protection);
 
 bool init_protection_enabled(void)
 {
-	return init_protection;
+	return !no_init_protection;
 }
 
 static bool warm_reboot = false;
@@ -769,8 +769,8 @@ asmlinkage __visible void __init start_kernel(void)
 		parse_args("Setting init args", after_dashes, NULL, 0, -1, -1,
 			   NULL, set_init_arg);
 
-	pr_info("Hack: init_protection=%s\n",
-		init_protection ? "enabled" : "disabled");
+	pr_info("Hack: no_init_protection=%s\n",
+		no_init_protection ? "enabled" : "disabled");
 	pr_info("Hack: warm_reboot=%s\n",
 		warm_reboot ? "enabled" : "disabled");
 	pr_info("Hack: no_msm_perf_boost=%s\n",
