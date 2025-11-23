@@ -78,29 +78,26 @@ else
     devices_to_process=("$arg_target")
 fi
 
-# Phase 1: KernelSU Builds
-if $k_param; then
-    ksu_opts="${build_opts//s/}"  # Remove SukiSU flag for KernelSU builds
-    for device_name in "${devices_to_process[@]}"; do
+# Build all variants for each device before moving to the next
+for device_name in "${devices_to_process[@]}"; do
+    # KernelSU Build
+    if $k_param; then
+        ksu_opts="${build_opts//s/}"  # Remove SukiSU flag for KernelSU builds
         run_build "$device_name" "$ksu_opts"
-    done
-fi
+    fi
 
-# Phase 2: SukiSU Builds
-if $s_param; then
-    suki_opts="${build_opts//k/}"  # Remove KernelSU flag for SukiSU builds
-    for device_name in "${devices_to_process[@]}"; do
+    # SukiSU Build
+    if $s_param; then
+        suki_opts="${build_opts//k/}"  # Remove KernelSU flag for SukiSU builds
         run_build "$device_name" "$suki_opts"
-    done
-fi
+    fi
 
-# Phase 3: Vanilla Builds
-if (! $k_param && ! $s_param) || ($f_param && ($k_param || $s_param)); then
-    vanilla_opts="${build_opts//k/}"
-    vanilla_opts="${vanilla_opts//s/}"
-    for device_name in "${devices_to_process[@]}"; do
+    # Vanilla Build
+    if (! $k_param && ! $s_param) || ($f_param && ($k_param || $s_param)); then
+        vanilla_opts="${build_opts//k/}"
+        vanilla_opts="${vanilla_opts//s/}"
         run_build "$device_name" "$vanilla_opts"
-    done
-fi
+    fi
+done
 
 echo "All targets built."
