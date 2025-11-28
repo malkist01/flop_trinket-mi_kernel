@@ -565,7 +565,13 @@ prep_build() {
 build() {
     mkdir -p out
     if [[ "$DO_REGEN" = "1" ]]; then
-        make O=out ARCH=arm64 "$DEFCONFIG" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") 2>&1 | tee log.txt
+        if [[ "$DO_KSU" = "1" ]] || [[ "$DO_SUKI" = "1" ]]; then
+             echo "ERROR: Can't regenerate with KSU or SukiSU argument"
+             exit 1
+        fi
+        # Clean any existing .config to avoid picking up settings from previous builds
+        rm -f out/.config
+        make O=out ARCH=arm64 "$DEFCONFIG" 2>&1 | tee log.txt
     else
         make O=out ARCH=arm64 "$DEFCONFIG" "$BASE_FRAGMENT" "$FRAGMENT" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") 2>&1 | tee log.txt
     fi
@@ -583,10 +589,6 @@ build() {
     fi
 
     if [[ "$DO_REGEN" = "1" ]]; then
-        if [[ "$DO_KSU" = "1" ]]; then
-             echo "ERROR: Can't regenerate with KSU argument"
-             exit 1
-        fi
         cp -f out/.config "arch/arm64/configs/$DEFCONFIG"
         echo "INFO: Configuration regenerated. Check the changes!"
         exit 0

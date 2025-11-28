@@ -5256,7 +5256,10 @@ CONFIG_FSTABDT_DISABLE=y
 #
 # KernelSU
 #
-# CONFIG_KSU is not set
+
+#
+# KernelSU
+#
 
 #
 # KernelSU - SUSFS
