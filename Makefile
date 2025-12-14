@@ -916,8 +916,7 @@ ifdef CONFIG_THINLTO
 lto-clang-flags	:= -flto=thin -fsplit-lto-unit $(call cc-option,-funified-lto)
 
 # LLVM tunings
-LDFLAGS += -mllvm -inline-threshold=1500
-LDFLAGS += -mllvm -import-instr-limit=15
+KBUILD_LDFLAGS += -mllvm -inline-threshold=500
 else
 lto-clang-flags	:= -flto
 endif
@@ -930,6 +929,7 @@ KBUILD_LDS_MODULE += $(srctree)/scripts/module-lto.lds
 # allow disabling only clang LTO where needed
 DISABLE_LTO_CLANG := -fno-lto
 export DISABLE_LTO_CLANG
+LDFLAGS		+= --plugin-opt=-import-instr-limit=5
 endif
 
 ifdef CONFIG_LTO
@@ -1037,20 +1037,6 @@ KBUILD_CFLAGS	+= $(call cc-option,-fmacro-prefix-map=$(srctree)/=)
 
 # Use store motion pass for gcse
 KBUILD_CFLAGS	+= $(call cc-option,-fgcse-sm)
-
-# Clang-specific optimizations (target: Clang 21+)
-KBUILD_CFLAGS	+= $(call cc-option,-fipa-pta)
-KBUILD_CFLAGS	+= $(call cc-option,-funsafe-loop-optimizations)
-KBUILD_CFLAGS	+= $(call cc-option,-ftree-vectorize)
-
-ifdef CONFIG_CC_IS_CLANG
-KBUILD_CFLAGS	+= $(call cc-option,-mllvm -unroll-threshold=150)
-KBUILD_CFLAGS	+= $(call cc-option,-mllvm -enable-partial-inlining)
-KBUILD_CFLAGS	+= $(call cc-option,-mllvm -force-vector-width=4)
-KBUILD_CFLAGS	+= $(call cc-option,-mllvm -enable-interleaved-mem-accesses)
-KBUILD_CFLAGS	+= $(call cc-option,-mllvm -enable-licm-vrp)
-KBUILD_CFLAGS	+= $(call cc-option,-mllvm -enable-dse-memoryssa)
-endif
 
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
