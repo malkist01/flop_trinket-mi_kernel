@@ -117,10 +117,11 @@ try_setns:
 		goto out;
 	}
 	struct path ns_path;
-	long ret = ns_get_path(&ns_path, pid1_task, &mntns_operations);
+	void *path_ret = ns_get_path(&ns_path, pid1_task, &mntns_operations);
 	put_task_struct(pid1_task);
-	if (ret) {
-		pr_warn("failed get path for init mount namespace: %ld\n", ret);
+	if (IS_ERR(path_ret)) {
+		pr_warn("failed get path for init mount namespace: %ld\n",
+			PTR_ERR(path_ret));
 		goto out;
 	}
 	struct file *ns_file = dentry_open(&ns_path, O_RDONLY, ksu_cred);
@@ -140,7 +141,7 @@ try_setns:
 	}
 
 	fd_install(fd, ns_file);
-	ret = ksu_sys_setns(fd, CLONE_NEWNS);
+	long ret = ksu_sys_setns(fd, CLONE_NEWNS);
 
 	do_close_fd(fd);
 
