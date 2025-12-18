@@ -159,7 +159,7 @@ struct apk_path_hash {
 	struct list_head list;
 };
 
-static struct list_head apk_path_hash_list;
+static LIST_HEAD(apk_path_hash_list);
 
 struct my_dir_context {
 	struct dir_context ctx;
