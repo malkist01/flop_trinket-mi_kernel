@@ -19,14 +19,15 @@
 #include "throne_tracker.h"
 #ifdef CONFIG_KSU_SYSCALL_HOOK
 #include "syscall_handler.h"
-#endif // #ifndef CONFIG_KSU_SUSFS
+#endif
 #if defined(CONFIG_KSU_MANUAL_HOOK) || defined(CONFIG_KSU_SUSFS)
 #include "setuid_hook.h"
 #include "sucompat.h"
-#endif
+#endif // #ifndef CONFIG_KSU_SUSFS
 #include "ksud.h"
 #include "supercalls.h"
 #include "ksu.h"
+#include "file_wrapper.h"
 
 struct cred *ksu_cred;
 
@@ -107,6 +108,8 @@ int __init kernelsu_init(void)
 #ifndef CONFIG_KSU_SUSFS
 	ksu_ksud_init();
 #endif // #ifndef CONFIG_KSU_SUSFS
+
+	ksu_file_wrapper_init();
 
 #ifdef MODULE
 #ifndef CONFIG_KSU_DEBUG

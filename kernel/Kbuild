@@ -11,6 +11,7 @@ ksu_obj-$(CONFIG_KSU_SYSCALL_HOOK) += kp_hook.o kp_util.o syscall_handler.o pkg_
 ksu_obj-y += kernel_compat.o
 ksu_obj-y += kernel_umount.o
 ksu_obj-y += supercalls.o
+ksu_obj-y += su_mount_ns.o
 ksu_obj-y += feature.o
 ksu_obj-y += ksud.o
 ksu_obj-y += seccomp_cache.o
@@ -169,13 +170,12 @@ ifeq ($(shell grep -q "atomic_t\s\+filter_count" $(srctree)/include/linux/seccom
 ccflags-y += -DKSU_OPTIONAL_SECCOMP_FILTER_CNT
 endif
 
-# some old kernel backport this, let's check if put_seccomp_filter still exist
-ifneq ($(shell grep -wq "put_seccomp_filter" $(srctree)/kernel/seccomp.c $(srctree)/include/linux/seccomp.h; echo $$?),0)
-ccflags-y += -DKSU_OPTIONAL_SECCOMP_FILTER_RELEASE
-endif
-
 ifeq ($(shell grep -q "anon_inode_getfd_secure" $(srctree)/fs/anon_inodes.c; echo $$?),0)
 ccflags-y += -DKSU_HAS_GETFD_SECURE
+endif
+
+ifeq ($(shell grep -q "security_inode_init_security_anon" $(srctree)/include/linux/security.h; echo $$?),0)
+ccflags-y += -DKSU_COMPAT_HAS_INIT_SEC_ANON
 endif
 
 # Checks Samsung
@@ -207,8 +207,9 @@ ccflags-y += -DKSU_MANAGER_PACKAGE=\"$(KSU_MANAGER_PACKAGE)\"
 $(info -- KernelSU Manager package name: $(KSU_MANAGER_PACKAGE))
 endif
 
-ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
-ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-missing-prototypes
+ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
+ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable -Wno-missing-braces
+ccflags-y += -Wno-int-to-pointer-cast -Wno-declaration-after-statement
 
 ## For susfs stuff ##
 ifeq ($(shell test -e $(srctree)/fs/susfs.c; echo $$?),0)

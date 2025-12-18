@@ -47,7 +47,6 @@ extern int ksu_observer_init(void);
 
 bool ksu_module_mounted __read_mostly = false;
 bool ksu_boot_completed __read_mostly = false;
-bool already_post_fs_data __read_mostly = false;
 
 static const char KERNEL_SU_RC[] =
 	"\n"
@@ -93,6 +92,7 @@ static bool is_boot_phase = true;
 
 void on_post_fs_data(void)
 {
+	static bool already_post_fs_data = false;
 	if (already_post_fs_data) {
 		pr_info("on_post_fs_data already done\n");
 		return;
@@ -118,14 +118,18 @@ extern void ext4_unregister_sysfs(struct super_block *sb);
 int nuke_ext4_sysfs(const char *mnt)
 {
 	struct path path;
-	int err = kern_path(mnt, 0, &path);
+	struct super_block *sb = NULL;
+	const char *name = NULL;
+	int err;
+	
+	err = kern_path(mnt, 0, &path);
 	if (err) {
 		pr_err("nuke path err: %d\n", err);
 		return err;
 	}
 
-	struct super_block *sb = path.dentry->d_inode->i_sb;
-	const char *name = sb->s_type->name;
+	sb = path.dentry->d_inode->i_sb;
+	name = sb->s_type->name;
 	if (strcmp(name, "ext4") != 0) {
 		pr_info("nuke but module aren't mounted\n");
 		path_put(&path);
@@ -370,7 +374,7 @@ static ssize_t read_proxy(struct file *file, char __user *buf, size_t count,
 	bool first_read = file->f_pos == 0;
 	ssize_t ret = orig_read(file, buf, count, pos);
 	if (first_read) {
-		pr_info("read_proxy append %ld + %ld\n", ret,
+		pr_info("read_proxy append %zd + %zd\n", ret,
 			read_count_append);
 		ret += read_count_append;
 	}
@@ -382,7 +386,7 @@ static ssize_t read_iter_proxy(struct kiocb *iocb, struct iov_iter *to)
 	bool first_read = iocb->ki_pos == 0;
 	ssize_t ret = orig_read_iter(iocb, to);
 	if (first_read) {
-		pr_info("read_iter_proxy append %ld + %ld\n", ret,
+		pr_info("read_iter_proxy append %zd + %zd\n", ret,
 			read_count_append);
 		ret += read_count_append;
 	}
@@ -510,15 +514,20 @@ int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code,
 		return 0;
 	}
 #endif // #ifndef CONFIG_KSU_SUSFS
+
 	if (*type == EV_KEY && *code == KEY_VOLUMEDOWN) {
-		int val = *value;
-		pr_info("KEY_VOLUMEDOWN val: %d\n", val);
-		if (val && is_boot_phase) {
-			// key pressed, count it
-			volumedown_pressed_count += 1;
-			if (is_volumedown_enough(volumedown_pressed_count)) {
-				stop_input_hook();
-			}
+		// Logic: 0 = released, 1 = pressed
+		if (*value <= 0) {
+			return 0;
+		}
+
+		// key pressed, count it
+		volumedown_pressed_count++;
+		pr_info("input_handle_event: vol_down pressed count: %u\n",
+			volumedown_pressed_count);
+		if (is_volumedown_enough(volumedown_pressed_count)) {
+			pr_info("input_handle_event: vol_down pressed MAX! safe mode is active!\n");
+			stop_input_hook();
 		}
 	}
 
@@ -527,30 +536,7 @@ int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code,
 
 bool ksu_is_safe_mode(void)
 {
-	if (already_post_fs_data) {
-		// stop checking if its already on-post-fs-data
-		return false;
-	}
-
-	static bool safe_mode = false;
-	if (safe_mode) {
-		// don't need to check again, userspace may call multiple times
-		return true;
-	}
-
-	// just in case
-	stop_input_hook();
-
-	pr_info("volumedown_pressed_count: %d\n", volumedown_pressed_count);
-
-	if (is_volumedown_enough(volumedown_pressed_count)) {
-		// pressed over 3 times
-		pr_info("KEY_VOLUMEDOWN pressed max times, safe mode detected!\n");
-		safe_mode = true;
-		return true;
-	}
-
-	return false;
+	return is_volumedown_enough(volumedown_pressed_count);
 }
 
 #ifdef CONFIG_KSU_MANUAL_HOOK
@@ -579,8 +565,8 @@ static int ksu_execve_ksud_common(const char __user *filename_user,
 	filename_in.name = path;
 	filename_p = &filename_in;
 
-	return ksu_handle_execveat_ksud(AT_FDCWD, &filename_p, argv, NULL,
-					NULL);
+	return ksu_handle_execveat_ksud((int *)AT_FDCWD, &filename_p, argv,
+					NULL, NULL);
 }
 
 int __maybe_unused
@@ -627,6 +613,7 @@ static void stop_input_hook(void)
 #ifdef CONFIG_KSU_SYSCALL_HOOK
 	kp_handle_ksud_stop(INPUT_EVENT_HOOK_KP);
 #else
+	// No need to stop when its already stopped.
 	if (!ksu_input_hook) {
 		return;
 	}
