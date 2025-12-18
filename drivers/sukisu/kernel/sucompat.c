@@ -91,12 +91,12 @@ static inline bool __is_su_allowed(const void *ptr_to_check)
 	if (!ksu_su_compat_enabled)
 		return false;
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+
 #ifdef CONFIG_SECCOMP
 	if (likely(!!current->seccomp.mode))
 		return false;
 #endif
-#endif
+
 	if (!ksu_is_allow_uid_for_current(current_uid().val))
 		return false;
 
@@ -139,7 +139,7 @@ static int ksu_sucompat_user_common(const char __user **filename_user,
 				    const char *syscall_name,
 				    const bool escalate)
 {
-	char path[sizeof(su)]; // sizeof includes nullterm already!
+	char path[sizeof(su) + 1];
 	memset(path, 0, sizeof(path));
 	ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
 
@@ -295,10 +295,6 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
 		return 0;
 	}
 
-	if (!ksu_su_compat_enabled) {
-		return 0;
-	}
-
 	if (likely(memcmp(filename->name, su_path, sizeof(su_path))))
 		return 0;
 
@@ -329,10 +325,6 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 {
 	char path[sizeof(su_path) + 1] = { 0 };
 
-	if (!ksu_su_compat_enabled) {
-		return 0;
-	}
-
 	ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
 
 	if (unlikely(!memcmp(path, su_path, sizeof(su_path)))) {
@@ -354,10 +346,6 @@ int ksu_handle_stat(int *dfd, struct filename **filename, int *flags)
 		return 0;
 	}
 
-	if (!ksu_su_compat_enabled) {
-		return 0;
-	}
-
 	if (likely(memcmp((*filename)->name, su_path, sizeof(su_path)))) {
 		return 0;
 	}
@@ -365,7 +353,7 @@ int ksu_handle_stat(int *dfd, struct filename **filename, int *flags)
 	pr_info("ksu_handle_stat: su->sh!\n");
 #if __SULOG_GATE
 	ksu_sulog_report_syscall(current_uid().val, NULL, "newfstatat",
-				 su_path);
+				 (*filename)->name);
 #endif
 	memcpy((void *)((*filename)->name), sh_path, sizeof(sh_path));
 	return 0;
@@ -373,15 +361,11 @@ int ksu_handle_stat(int *dfd, struct filename **filename, int *flags)
 #else
 int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
 {
+	char path[sizeof(su_path) + 1] = { 0 };
+	
 	if (unlikely(!filename_user)) {
 		return 0;
 	}
-
-	if (!ksu_su_compat_enabled) {
-		return 0;
-	}
-
-	char path[sizeof(su_path) + 1] = { 0 };
 
 	ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
 
@@ -401,10 +385,6 @@ int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
 int ksu_handle_devpts(struct inode *inode)
 {
 	if (!current->mm) {
-		return 0;
-	}
-
-	if (!ksu_su_compat_enabled) {
 		return 0;
 	}
 

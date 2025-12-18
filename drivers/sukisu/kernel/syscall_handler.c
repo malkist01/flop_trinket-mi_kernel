@@ -1,13 +1,13 @@
-#include "linux/compiler.h"
-#include "linux/cred.h"
-#include "linux/printk.h"
-#include "selinux/selinux.h"
+#include <linux/compiler.h>
+#include <linux/cred.h>
+#include <linux/printk.h>
 #include <linux/spinlock.h>
 #include <linux/kprobes.h>
 #include <linux/tracepoint.h>
-#include <asm/syscall.h>
 #include <linux/ptrace.h>
 #include <linux/slab.h>
+#include <asm/syscall.h>
+
 #include <trace/events/syscalls.h>
 
 #include "allowlist.h"
@@ -63,7 +63,7 @@ void ksu_unmark_all_process(void)
 	pr_info("hook_manager: unmark all user process done!\n");
 }
 
-static void ksu_mark_running_process_locked()
+static void ksu_mark_running_process_locked(void)
 {
 	struct task_struct *p, *t;
 	read_lock(&tasklist_lock);
@@ -93,7 +93,7 @@ static void ksu_mark_running_process_locked()
 	read_unlock(&tasklist_lock);
 }
 
-void ksu_mark_running_process()
+void ksu_mark_running_process(void)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&tracepoint_reg_lock, flags);
@@ -276,8 +276,7 @@ int ksu_handle_init_mark_tracker(const char __user **filename_user)
 #ifdef CONFIG_HAVE_SYSCALL_TRACEPOINTS
 static int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
-	return ksu_handle_setuid_common(ruid, current_uid().val, euid,
-					current_euid().val);
+	return ksu_handle_setuid_common(ruid, current_uid().val, euid);
 }
 
 // Generic sys_enter handler that dispatches to specific handlers
