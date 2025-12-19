@@ -60,10 +60,11 @@ config ZRAM_SIZE_AUTO
 	default n
 	depends on ZRAM
 	help
-	  Automatically sets zram size based on total system memory.
-	  4GB RAM -> 4GB zram
-	  6GB RAM -> 6GB zram
-	  8GB RAM -> 8GB zram
+	  Automatically sets zram size to approximately half of total
+	  system memory based on detected RAM tier:
+	  3GB RAM -> 2GB zram
+	  4GB RAM -> 2GB zram
+	  6GB RAM -> 3GB zram
 
 config ZRAM_SIZE_OVERRIDE
 	int "zram size to set from kernel"
