@@ -41,7 +41,7 @@ extern int ksu_observer_init(void);
 #endif
 #include "selinux/selinux.h"
 #include "throne_tracker.h"
-#ifdef CONFIG_KSU_MANUAL_HOOK
+#if defined(CONFIG_KSU_MANUAL_HOOK) && !defined(CONFIG_KSU_SUSFS)
 #include "sucompat.h"
 #endif
 
@@ -208,7 +208,7 @@ static int __maybe_unused count(struct user_arg_ptr argv, int max)
 
 			if (fatal_signal_pending(current))
 				return -ERESTARTNOHAND;
-#ifdef CONFIG_KSU_MANUAL_HOOK
+#if defined(CONFIG_KSU_MANUAL_HOOK) && !defined(CONFIG_KSU_SUSFS)
 			cond_resched();
 #endif
 		}
@@ -236,7 +236,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
 			     struct user_arg_ptr *argv,
 			     struct user_arg_ptr *envp, int *flags)
 {
-#ifdef CONFIG_KSU_MANUAL_HOOK
+#if defined(CONFIG_KSU_MANUAL_HOOK) && !defined(CONFIG_KSU_SUSFS)
 	if (!ksu_execveat_hook) {
 		return 0;
 	}
@@ -490,6 +490,7 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
 int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
 			size_t *count_ptr)
 {
+#if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_SUSFS)
 	struct file *file = fget(fd);
 	if (!file) {
 		return 0;
@@ -497,6 +498,10 @@ int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
 	int result = ksu_handle_vfs_read(&file, buf_ptr, count_ptr, NULL);
 	fput(file);
 	return result;
+#else
+	/* Do nothing */
+	return 0;
+#endif
 }
 
 static unsigned int volumedown_pressed_count = 0;
@@ -538,55 +543,6 @@ bool ksu_is_safe_mode(void)
 {
 	return is_volumedown_enough(volumedown_pressed_count);
 }
-
-#ifdef CONFIG_KSU_MANUAL_HOOK
-static int ksu_execve_ksud_common(const char __user *filename_user,
-				  struct user_arg_ptr *argv)
-{
-	struct filename filename_in, *filename_p;
-	char path[32];
-	long len;
-
-	// return early if disabled.
-	if (!ksu_execveat_hook) {
-		return 0;
-	}
-
-	if (!filename_user)
-		return 0;
-
-	len = ksu_strncpy_from_user_nofault(path, filename_user, 32);
-	if (len <= 0)
-		return 0;
-
-	path[sizeof(path) - 1] = '\0';
-
-	// this is because ksu_handle_execveat_ksud calls it filename->name
-	filename_in.name = path;
-	filename_p = &filename_in;
-
-	return ksu_handle_execveat_ksud((int *)AT_FDCWD, &filename_p, argv,
-					NULL, NULL);
-}
-
-int __maybe_unused
-ksu_handle_execve_ksud(const char __user *filename_user,
-		       const char __user *const __user *__argv)
-{
-	struct user_arg_ptr argv = { .ptr.native = __argv };
-	return ksu_execve_ksud_common(filename_user, &argv);
-}
-
-#if defined(CONFIG_COMPAT) && defined(CONFIG_64BIT)
-int __maybe_unused ksu_handle_compat_execve_ksud(
-	const char __user *filename_user, const compat_uptr_t __user *__argv)
-{
-	struct user_arg_ptr argv = { .ptr.compat = __argv };
-	return ksu_execve_ksud_common(filename_user, &argv);
-}
-#endif /* COMPAT & 64BIT */
-
-#endif
 
 static void stop_vfs_read_hook(void)
 {
