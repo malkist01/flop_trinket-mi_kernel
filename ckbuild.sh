@@ -679,7 +679,7 @@ apply_kpm_patch() {
     echo -e "\nINFO: Applying KPM patch..."
 
     # Vars
-    local KPM_URL="https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux"
+    local KPM_URL="https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/83aa64b7548890bb1f2eff6c990c03a1802df27b/kpm/patch_linux"
     local MAGISKBOOT="$KDIR/floppy_utils/magiskboot"
     local WORK_DIR="$WP/kpm_work"
     local FULL_OUT_IMAGE="$KDIR/$OUT_IMAGE"
