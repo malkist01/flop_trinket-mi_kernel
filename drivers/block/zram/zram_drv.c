@@ -1866,12 +1866,12 @@ static ssize_t disksize_store(struct device *dev,
 			totalram_pages() * (PAGE_SIZE / 1024) / 1024;
 
 		if (total_ram_mb > 4200) {
-			disksize = 3ULL * SZ_1G;
-			pr_info("Detected 6GB RAM variant (usable: %lu MB), setting ZRAM to 3GB\n",
+			disksize = 4ULL * SZ_1G;
+			pr_info("Detected 6GB RAM variant (usable: %lu MB), setting ZRAM to 4GB\n",
 				total_ram_mb);
 		} else if (total_ram_mb > 3200) {
-			disksize = 2ULL * SZ_1G;
-			pr_info("Detected 4GB RAM variant (usable: %lu MB), setting ZRAM to 2GB\n",
+			disksize = 3ULL * SZ_1G;
+			pr_info("Detected 4GB RAM variant (usable: %lu MB), setting ZRAM to 3GB\n",
 				total_ram_mb);
 		} else {
 			disksize = 2ULL * SZ_1G;
