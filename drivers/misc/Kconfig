@@ -608,6 +608,25 @@ config BATTERY_SAVER
 
 	  If in doubt, say N.
 
+config MI_DETECT
+	bool "Xiaomi device detection driver"
+	default n
+	help
+	  This driver detects the Xiaomi device currently running this kernel
+	  by reading the device tree model string at boot time. It provides
+	  helper functions to check whether the device is ginkgo/willow
+	  (Redmi Note 8/8T) or laurel_sprout (Xiaomi Mi A3).
+
+	  If in doubt, say N.
+
+config MI_DETECT_SYSFS
+	bool "Enable sysfs interface for mi_detect"
+	depends on MI_DETECT
+	default y
+	help
+	  Expose the detected device information via sysfs at
+	  /sys/kernel/mi_detect/device_name.
+
 config FORCE_FAST_CHARGE
 	bool "Force faster charge rate for USB"
 	default n
