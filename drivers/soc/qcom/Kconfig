@@ -907,7 +907,8 @@ config MSM_PERFORMANCE
 
 config MSM_DRM_NOTIFY
 	bool
-	depends on !DRM_MSM
+	depends on DRM
+	default y if DRM_MSM
 	help
 	  This driver can register and receive notification for MSM_DRM
 	  power event in external module. When display power state is
