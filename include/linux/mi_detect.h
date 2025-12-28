@@ -4,6 +4,7 @@
 #define _LINUX_MI_DETECT_H
 
 #include <linux/types.h>
+#include <linux/jump_label.h>
 
 #ifdef CONFIG_MI_DETECT
 
@@ -11,6 +12,9 @@ void mi_detect_init(void);
 const char *mi_get_current_device(void);
 bool mi_is_ginkgo(void);
 bool mi_is_laurel(void);
+
+extern struct static_key_false mi_ginkgo_key;
+extern struct static_key_false mi_laurel_key;
 
 #else
 

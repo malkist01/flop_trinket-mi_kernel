@@ -26,15 +26,19 @@ static inline bool uses_kernel_dimming_fast(void)
 	return static_branch_likely(&uses_kernel_dimming_key);
 }
 
+extern struct static_key_false device_c3j_key;
+extern struct static_key_false device_f9s_key;
+void mi_detect_static_branch_init(void);
+
 // Devices
 static inline bool is_device_c3j(void)
 {
-	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+	return mi_is_ginkgo();
 }
 
 static inline bool is_device_f9s(void)
 {
-	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
+	return mi_is_laurel();
 }
 
 #endif /* _XIMI_WORKAROUNDS_H */

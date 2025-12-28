@@ -16,6 +16,7 @@
 #include <linux/mi_detect.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/jump_label.h>
 
 enum mi_device_type {
 	MI_DEVICE_UNKNOWN = 0,
@@ -24,6 +25,11 @@ enum mi_device_type {
 };
 
 static enum mi_device_type mi_device = MI_DEVICE_UNKNOWN;
+
+DEFINE_STATIC_KEY_FALSE(mi_ginkgo_key);
+DEFINE_STATIC_KEY_FALSE(mi_laurel_key);
+EXPORT_SYMBOL_GPL(mi_ginkgo_key);
+EXPORT_SYMBOL_GPL(mi_laurel_key);
 
 const char *mi_get_current_device(void)
 {
@@ -40,12 +46,16 @@ EXPORT_SYMBOL_GPL(mi_get_current_device);
 
 bool mi_is_ginkgo(void)
 {
+	if (static_branch_unlikely(&mi_ginkgo_key))
+		return true;
 	return mi_device == MI_DEVICE_GINKGO;
 }
 EXPORT_SYMBOL_GPL(mi_is_ginkgo);
 
 bool mi_is_laurel(void)
 {
+	if (static_branch_unlikely(&mi_laurel_key))
+		return true;
 	return mi_device == MI_DEVICE_LAUREL;
 }
 EXPORT_SYMBOL_GPL(mi_is_laurel);
@@ -68,6 +78,11 @@ void mi_detect_init(void)
 		}
 		of_node_put(root);
 	}
+
+	if (mi_device == MI_DEVICE_GINKGO)
+		static_branch_enable(&mi_ginkgo_key);
+	else if (mi_device == MI_DEVICE_LAUREL)
+		static_branch_enable(&mi_laurel_key);
 
 	pr_info("mi_detect: Detected device: %s\n", mi_get_current_device());
 }
