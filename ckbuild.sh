@@ -49,6 +49,12 @@ case "$TARGET_DEVICE" in
         CODENAME="laurel_sprout"
         FRAGMENT="$LAUREL_FRAGMENT"
         ;;
+    mitrinket)
+        AK3_BRANCH="floppy-unity"
+        DEVICE="Unified Ginkgo/Laurel"
+        CODENAME="mitrinket"
+        FRAGMENT="vendor/unified.config"
+        ;;
     *)
         echo -e "\nERROR: Unknown device: $TARGET_DEVICE\n"
         exit 1
@@ -106,6 +112,11 @@ OUT_DTBO="$DTBO_TMP/dtbo.img"
 # Set OUT_DTB based on device
 if [[ "$CODENAME" == "laurel_sprout" ]]; then
     OUT_DTB="out/arch/arm64/boot/dts/xiaomi/laurel_sprout-trinket-base.dtb"
+elif [[ "$CODENAME" == "mitrinket" ]]; then
+    OUT_DTB_GINKGO="out/arch/arm64/boot/dts/xiaomi/qcom-base/trinket.dtb"
+    OUT_DTB_LAUREL="out/arch/arm64/boot/dts/xiaomi/laurel_sprout-trinket-base.dtb"
+    # Set OUT_DTB to ginkgo as default for checks
+    OUT_DTB="$OUT_DTB_GINKGO"
 else
     OUT_DTB="out/arch/arm64/boot/dts/xiaomi/qcom-base/trinket.dtb"
 fi
@@ -659,16 +670,22 @@ dtbo_build() {
     case "$CODENAME" in
         ginkgo)
             IN_DTBO="$IN_DTBO_GINKGO"
+            python3 "$KDIR/scripts/dtc/libfdt/mkdtboimg.py" create "$OUT_DTBO" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "$IN_DTBO"
             ;;
         laurel_sprout)
             IN_DTBO="$IN_DTBO_LAUREL"
+            python3 "$KDIR/scripts/dtc/libfdt/mkdtboimg.py" create "$OUT_DTBO" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "$IN_DTBO"
+            ;;
+        mitrinket)
+            python3 "$KDIR/scripts/dtc/libfdt/mkdtboimg.py" create "$DTBO_TMP/dtbo-ginkgo.img" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "$IN_DTBO_GINKGO"
+            python3 "$KDIR/scripts/dtc/libfdt/mkdtboimg.py" create "$DTBO_TMP/dtbo-laurel_sprout.img" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "$IN_DTBO_LAUREL"
+            OUT_DTBO="$DTBO_TMP/dtbo-ginkgo.img"
             ;;
         *)
             echo "ERROR: Unknown device for DTBO build!"
             exit 1
             ;;
     esac
-    python3 "$KDIR/scripts/dtc/libfdt/mkdtboimg.py" create "$OUT_DTBO" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "$IN_DTBO"
 }
 
 apply_kpm_patch() {
@@ -801,7 +818,16 @@ apply_kpm_patch() {
 
 post_build() {
     ## Check if the kernel binaries were built.
-    if [[ -f "$OUT_IMAGE" ]] && [[ -f "$OUT_DTBO" ]] && [[ -f "$OUT_DTB" ]]; then
+    if [[ "$CODENAME" == "unified" ]]; then
+        if [[ -f "$OUT_IMAGE" ]] && [[ -f "$DTBO_TMP/dtbo-ginkgo.img" ]] && [[ -f "$DTBO_TMP/dtbo-laurel_sprout.img" ]] && [[ -f "$OUT_DTB_GINKGO" ]] && [[ -f "$OUT_DTB_LAUREL" ]]; then
+            echo -e "\nINFO: Kernel compiled succesfully! Zipping up..."
+        else
+            echo -e "\nERROR: Kernel files not found! Compilation failed?"
+            echo -e "\nINFO: Uploading log to 0x0.st\n"
+            curl -F'file=@log.txt' http://0x0.st || echo "WARNING: Failed to upload log to 0x0.st (ignored)"
+            exit 1
+        fi
+    elif [[ -f "$OUT_IMAGE" ]] && [[ -f "$OUT_DTBO" ]] && [[ -f "$OUT_DTB" ]]; then
         echo -e "\nINFO: Kernel compiled succesfully! Zipping up..."
     else
         echo -e "\nERROR: Kernel files not found! Compilation failed?"
@@ -823,8 +849,16 @@ post_build() {
 
     ## Copy the built binaries
     cp "$OUT_IMAGE" "$AK3_DIR"
-    cp "$OUT_DTBO" "$AK3_DIR"
-    cp "$OUT_DTB" "$AK3_DIR/dtb"
+    if [[ "$CODENAME" == "mitrinket" ]]; then
+        # Device-named DTBOs (required in mitrinket unified builds)
+        cp "$OUT_DTBO" "$AK3_DIR/dtbo-ginkgo.img"
+        cp "$DTBO_TMP/dtbo-laurel_sprout.img" "$AK3_DIR/dtbo-laurel_sprout.img"
+        cp "$OUT_DTB_GINKGO" "$AK3_DIR/dtb-ginkgo"
+        cp "$OUT_DTB_LAUREL" "$AK3_DIR/dtb-laurel_sprout"
+    else
+        cp "$OUT_DTBO" "$AK3_DIR"
+        cp "$OUT_DTB" "$AK3_DIR/dtb"
+    fi
     rm -f *zip
 
     ## Prepare kernel flashable zip
