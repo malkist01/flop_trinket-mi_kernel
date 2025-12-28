@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/irqreturn.h>
+#include <linux/mi_detect.h>
 #include <soc/qcom/scm.h>
 #include "msm_csid.h"
 #include "msm_sd.h"
@@ -75,11 +76,24 @@
 #define FALSE  0
 
 #define MAX_LANE_COUNT 4
-#ifdef CONFIG_MACH_XIAOMI_C3J
-#define CSID_TIMEOUT msecs_to_jiffies(800)
-#else
-#define CSID_TIMEOUT msecs_to_jiffies(100)
-#endif
+
+static inline unsigned long msm_csid_timeout_jiffies(void)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return msecs_to_jiffies(800);
+
+	return msecs_to_jiffies(100);
+}
+
+static inline uint32_t msm_csid_sof_debug_count_max(void)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel())
+		return CSID_SOF_DEBUG_COUNT_LAUREL;
+
+	return CSID_SOF_DEBUG_COUNT_DEFAULT;
+}
+
+#define CSID_TIMEOUT (msm_csid_timeout_jiffies())
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -654,7 +668,7 @@ static irqreturn_t msm_csid_irq(int irq_num, void *data)
 	}
 
 	if (csid_dev->csid_sof_debug == SOF_DEBUG_ENABLE) {
-		if (csid_dev->csid_sof_debug_count < CSID_SOF_DEBUG_COUNT)
+		if (csid_dev->csid_sof_debug_count < msm_csid_sof_debug_count_max())
 			csid_dev->csid_sof_debug_count++;
 		else {
 			msm_csid_set_sof_freeze_debug_reg(csid_dev, false);

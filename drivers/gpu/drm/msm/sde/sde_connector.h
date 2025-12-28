@@ -168,11 +168,8 @@ struct sde_connector_ops {
 	 */
 	int (*set_backlight)(struct drm_connector *connector,
 			void *display, u32 bl_lvl);
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	int (*set_panel_register)(struct drm_connector *connector,
 			void *display, int value);
-#endif
 
 	/**
 	 * soft_reset - perform a soft reset on the connector
@@ -249,12 +246,9 @@ struct sde_connector_ops {
 	 */
 	int (*check_status)(struct drm_connector *connector, void *display,
 					bool te_check_override);
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	int (*check_white_status)(struct drm_connector *connector,
 					void *display,
 					bool te_check_override);
-#endif
 
 	/**
 	 * cmd_transfer - Transfer command to the connected display panel
@@ -334,8 +328,6 @@ struct sde_connector_ops {
 	 */
 	int (*prepare_commit)(void *display,
 			struct msm_display_conn_params *params);
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	/**
 	 * get_dim_layer_alpha - returns alpha value for global dimming layer
 	 * @display: Pointer to private display handle
@@ -347,7 +339,6 @@ struct sde_connector_ops {
 	 */
 	int (*get_dim_layer_alpha)(void *display, enum msm_dim_layer_type type,
 				   u32 *alpha);
-#endif
 };
 
 /**
@@ -932,8 +923,6 @@ int sde_connector_get_panel_vfp(struct drm_connector *connector,
  * @connector: Pointer to DRM connector object
  */
 int sde_connector_esd_status(struct drm_connector *connector);
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 /**
  * sde_connector_get_dim_layer_alpha - helper to get global dimming layer alpha
  * @connector: pointer to drm connector
@@ -945,6 +934,5 @@ int sde_connector_esd_status(struct drm_connector *connector);
  */
 int sde_connector_get_dim_layer_alpha(struct drm_connector *connector,
 				      enum msm_dim_layer_type type, u32 *alpha);
-#endif
 
 #endif /* _SDE_CONNECTOR_H_ */

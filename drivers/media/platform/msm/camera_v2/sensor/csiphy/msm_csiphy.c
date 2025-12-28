@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/module.h>
 #include <linux/irqreturn.h>
+#include <linux/mi_detect.h>
 #include <asm/div64.h>
 #include "msm_csiphy.h"
 #include "msm_sd.h"
@@ -57,11 +58,14 @@
 #define CSI_3PHASE_HW                               1
 #define MAX_DPHY_DATA_LN                            4
 #define CLOCK_OFFSET                              0x700
-#ifdef CONFIG_MACH_XIAOMI_F9S
-#define CSIPHY_SOF_DEBUG_COUNT                      5
-#else
-#define CSIPHY_SOF_DEBUG_COUNT                      2
-#endif
+
+static inline uint32_t msm_csiphy_sof_debug_count_max(void)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel())
+		return 5;
+
+	return 2;
+}
 #define MBPS                                      1000000
 #define SNPS_INTERPHY_OFFSET                      0x800
 #define SET_THE_BIT(x)                            (0x1 << x)
@@ -1514,7 +1518,8 @@ static irqreturn_t msm_csiphy_irq(int irq_num, void *data)
 	struct csiphy_device *csiphy_dev = data;
 
 	if (csiphy_dev->csiphy_sof_debug == SOF_DEBUG_ENABLE) {
-		if (csiphy_dev->csiphy_sof_debug_count < CSIPHY_SOF_DEBUG_COUNT)
+		if (csiphy_dev->csiphy_sof_debug_count <
+		    msm_csiphy_sof_debug_count_max())
 			csiphy_dev->csiphy_sof_debug_count++;
 		else {
 			msm_csiphy_disable_irq(csiphy_dev);

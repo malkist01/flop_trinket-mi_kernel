@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/mi_detect.h>
 #include <linux/pwm.h>
 #include <video/mipi_display.h>
 
@@ -25,12 +26,10 @@
 #include "dsi_parser.h"
 #include <linux/workarounds.h>
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 char g_lcd_id[128];
 extern bool panel_init_judge;
 
 bool backlight_val;
-#endif
 
 /**
  * topology is currently defined by a set of following 3 values:
@@ -51,7 +50,6 @@ bool backlight_val;
 #define MAX_PANEL_JITTER		10
 #define DEFAULT_PANEL_PREFILL_LINES	25
 #define TICKS_IN_MICRO_SECOND		1000000
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #define ACL_ON	1
 #define ACL_OFF	0
 #define R692A9_PAGE_60	2
@@ -61,7 +59,6 @@ bool backlight_val;
 #define HBM_ON_DIMMING_ON				0xE8
 #define HBM_OFF_DIMMING_OFF				0x20
 #define HBM_OFF_DIMMING_ON				0x28
-#endif
 
 enum dsi_dsc_ratio_type {
 	DSC_8BPC_8BPP,
@@ -391,9 +388,8 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 		}
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	usleep_range(12 * 1000, 12 * 1000);
-#endif
+	if (mi_is_ginkgo())
+		usleep_range(12 * 1000, 12 * 1000);
 	if (r_config->count) {
 		rc = gpio_direction_output(r_config->reset_gpio,
 			r_config->sequence[0].level);
@@ -516,11 +512,11 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		goto error_disable_vregs;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	/* If LP11_INIT is set, skip panel reset here*/
-	if (panel->lp11_init)
-		goto exit;
-#endif
+	if (mi_is_laurel()) {
+		/* If LP11_INIT is set, skip panel reset here */
+		if (panel->lp11_init)
+			goto exit;
+	}
 
 	rc = dsi_panel_reset(panel);
 	if (rc) {
@@ -699,63 +695,59 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	return 0;
 }
 
-#ifndef CONFIG_MACH_XIAOMI_C3J
 static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	u32 bl_lvl)
 {
 	int rc = 0;
 	struct mipi_dsi_device *dsi;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	static u32 last_bl_level;
-#endif
 
 	if (!panel || (bl_lvl > 0xffff)) {
 		pr_err("invalid params\n");
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (((bl_lvl > 0) && (last_bl_level == 0)) ||
-	    ((bl_lvl == 0) && (last_bl_level > 0))) {
-		last_bl_level = bl_lvl;
+	if (mi_is_laurel()) {
+		if (((bl_lvl > 0) && (last_bl_level == 0)) ||
+		    ((bl_lvl == 0) && (last_bl_level > 0))) {
+			last_bl_level = bl_lvl;
+		}
 	}
-#endif
 
 	dsi = &panel->mipi_device;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (bl_lvl == 0) {
-		rc = dsi_panel_set_dimming_brightness(panel,
+	if (mi_is_laurel()) {
+		if (bl_lvl == 0) {
+			rc = dsi_panel_set_dimming_brightness(panel,
 						      HBM_OFF_DIMMING_OFF,
 						      bl_lvl);
-		panel->skip_dimming_on = true;
-	} else {
-		if (panel->skip_dimming_on == true) {
-			rc = dsi_panel_set_dimming_brightness(panel,
-					HBM_OFF_DIMMING_OFF, bl_lvl);
-			panel->skip_dimming_on = false;
-		} else if ((panel->dimming_enabled == false) &&
-			   (panel->skip_dimming_on == false)) {
-			rc = dsi_panel_set_dimming_brightness(panel,
-					HBM_OFF_DIMMING_ON, bl_lvl);
+			panel->skip_dimming_on = true;
 		} else {
-			rc = dsi_panel_set_brightness(panel,
+			if (panel->skip_dimming_on == true) {
+				rc = dsi_panel_set_dimming_brightness(panel,
+						HBM_OFF_DIMMING_OFF, bl_lvl);
+				panel->skip_dimming_on = false;
+			} else if ((panel->dimming_enabled == false) &&
+				   (panel->skip_dimming_on == false)) {
+				rc = dsi_panel_set_dimming_brightness(panel,
+						HBM_OFF_DIMMING_ON, bl_lvl);
+			} else {
+				rc = dsi_panel_set_brightness(panel,
 						      HBM_OFF_DIMMING_ON,
 						      bl_lvl);
+			}
 		}
-	}
-#else
-	if (panel->bl_config.bl_inverted_dbv)
-		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
+	} else {
+		if (panel->bl_config.bl_inverted_dbv)
+			bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
 
-	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
-#endif
+		rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
+	}
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
 
 	return rc;
 }
-#endif
 
 static int dsi_panel_update_pwm_backlight(struct dsi_panel *panel,
 	u32 bl_lvl)
@@ -808,7 +800,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int usbchg_lcd_brightness = 0;
 #define USBCHG_LCD_ON	0
 bool usbchg_lcd_is_on(void)
@@ -823,6 +814,9 @@ bool usbchg_lcd_is_on(void)
 int dsi_panel_set_doze_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
+
+	if (!mi_is_laurel())
+		return -ENOTSUPP;
 
 	if (!panel) {
 		pr_err("invalid panel ptr params\n");
@@ -849,6 +843,9 @@ int dsi_panel_set_brightness(struct dsi_panel *panel, u8 dimming,
 {
 	int rc = 0;
 
+	if (!mi_is_laurel())
+		return -ENOTSUPP;
+
 	if (!panel) {
 		pr_err("invalid panel ptr params\n");
 		return -EINVAL;
@@ -873,6 +870,9 @@ int dsi_panel_set_dimming_brightness(struct dsi_panel *panel, u8 dimming,
 				     u32 brightness)
 {
 	int rc = 0;
+
+	if (!mi_is_laurel())
+		return -ENOTSUPP;
 
 	if (!panel) {
 		pr_err("invalid panel ptr params\n");
@@ -907,13 +907,14 @@ int dsi_panel_set_dimming_brightness(struct dsi_panel *panel, u8 dimming,
 
 	return rc;
 }
-#endif
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 extern int sgm_brightness_set(uint16_t brightness);
 static int dsi_panel_update_backlight_external(struct dsi_panel *panel,
 					       u32 bl_lvl)
 {
+	if (!mi_is_ginkgo())
+		return 0;
+
 	if (bl_lvl > 0)
 		backlight_val = true;
 	else
@@ -927,8 +928,7 @@ static int dsi_panel_update_backlight_external(struct dsi_panel *panel,
 	sgm_brightness_set(bl_lvl);
 	return 0;
 }
-#endif
-#ifdef CONFIG_MACH_XIAOMI_F9S
+
 
 static int __dsi_panel_send(struct dsi_panel *panel, enum dsi_cmd_set_type type,
 			    const char *name)
@@ -1015,23 +1015,24 @@ no_change:
 	/* Return previous dimming layer type */
 	return type;
 }
-#endif
 
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
 	struct dsi_backlight_config *bl = &panel->bl_config;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	usbchg_lcd_brightness = bl_lvl;
 
-	if ((bl_lvl < bl->bl_min_level) && (bl_lvl != 0))
-		bl_lvl = bl->bl_min_level;
+	if (mi_is_laurel()) {
+		usbchg_lcd_brightness = bl_lvl;
 
-	if (panel->host_config.ext_bridge_mode)
-#else
-	if (panel->host_config.ext_bridge_num)
-#endif
-		return 0;
+		if ((bl_lvl < bl->bl_min_level) && (bl_lvl != 0))
+			bl_lvl = bl->bl_min_level;
+
+		if (panel->host_config.ext_bridge_mode)
+			return 0;
+	} else {
+		if (panel->host_config.ext_bridge_num)
+			return 0;
+	}
 
 	pr_debug("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	switch (bl->type) {
@@ -1039,19 +1040,17 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		rc = backlight_device_set_brightness(bl->raw_bd, bl_lvl);
 		break;
 	case DSI_BACKLIGHT_DCS:
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		if (panel->fod_backlight_flag || panel->fod_hbm_enabled) {
-			pr_info("[FOD HBM open, skip set_backlight:%u [hbm=%d][fod_bl=%d]\n",
-				bl_lvl, panel->fod_hbm_enabled,
-				panel->fod_backlight_flag);
-		} else {
+		if (mi_is_laurel()) {
+			if (panel->fod_backlight_flag || panel->fod_hbm_enabled) {
+				pr_info("[FOD HBM open, skip set_backlight:%u [hbm=%d][fod_bl=%d]\n",
+					bl_lvl, panel->fod_hbm_enabled,
+					panel->fod_backlight_flag);
+			} else {
+				rc = dsi_panel_update_backlight(panel, bl_lvl);
+			}
+		} else if (!mi_is_ginkgo()) {
 			rc = dsi_panel_update_backlight(panel, bl_lvl);
 		}
-#else
-#ifndef CONFIG_MACH_XIAOMI_C3J
-		rc = dsi_panel_update_backlight(panel, bl_lvl);
-#endif
-#endif
 		break;
 	case DSI_BACKLIGHT_EXTERNAL:
 		break;
@@ -1062,14 +1061,13 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		pr_err("Backlight type(%d) not supported\n", bl->type);
 		rc = -ENOTSUPP;
 	}
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (bl_lvl != 0)
-		panel->last_bl_lvl = bl_lvl;
-#endif
+	if (mi_is_laurel()) {
+		if (bl_lvl != 0)
+			panel->last_bl_lvl = bl_lvl;
+	}
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	rc = dsi_panel_update_backlight_external(panel, bl_lvl);
-#endif
+	if (mi_is_ginkgo())
+		rc = dsi_panel_update_backlight_external(panel, bl_lvl);
 	return rc;
 }
 
@@ -1124,8 +1122,6 @@ static int dsi_panel_pwm_register(struct dsi_panel *panel)
 
 	return 0;
 }
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static u32 interpolate(uint32_t x, uint32_t xa, uint32_t xb,
 		       uint32_t ya, uint32_t yb)
 {
@@ -1136,6 +1132,9 @@ u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
 {
 	u32 brightness = dsi_panel_get_backlight(panel);
 	int i;
+
+	if (!mi_is_laurel())
+		return 0;
 
 	/* No dimming is required if HBM mode is enabled and device
 	 * is not in doze mode.
@@ -1170,6 +1169,9 @@ int dsi_panel_set_hbm_enabled(struct dsi_panel *panel, bool status)
 	if (!panel)
 		return -EINVAL;
 
+	if (!mi_is_laurel())
+		return -EOPNOTSUPP;
+
 	dsi_panel_acquire_panel_lock(panel);
 
 	if (panel->hbm_enabled != status) {
@@ -1183,7 +1185,6 @@ int dsi_panel_set_hbm_enabled(struct dsi_panel *panel, bool status)
 
 	return rc;
 }
-#endif
 
 static int dsi_panel_bl_register(struct dsi_panel *panel)
 {
@@ -2155,7 +2156,6 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-pre-off-command",
 	"qcom,mdss-dsi-off-command",
 	"qcom,mdss-dsi-post-off-command",
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	"qcom,mdss-dsi-cabc-on-command",
 	"qcom,mdss-dsi-cabc-off-command",
 	"qcom,mdss-dsi-cabc_movie-on-command",
@@ -2164,7 +2164,6 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-hbm2-on-command",
 	"qcom,mdss-dsi-hbm3-on-command",
 	"qcom,mdss-dsi-hbm-off-command",
-#endif
 	"qcom,mdss-dsi-pre-res-switch",
 	"qcom,mdss-dsi-res-switch",
 	"qcom,mdss-dsi-post-res-switch",
@@ -2182,7 +2181,6 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	"qcom,mdss-dsi-acl-on-command",
 	"qcom,mdss-dsi-acl-off-command",
 	"qcom,mdss-dsi-r692a9-page60-command",
@@ -2199,7 +2197,6 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-dispparam-hbm-fod-off-command",
 	"qcom,mdss-dsi-doze-hbm-command",
 	"qcom,mdss-dsi-doze-lbm-command",
-#endif
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -2209,7 +2206,6 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-pre-off-command-state",
 	"qcom,mdss-dsi-off-command-state",
 	"qcom,mdss-dsi-post-off-command-state",
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	"qcom,mdss-dsi-cabc-on-command-state",
 	"qcom,mdss-dsi-cabc-off-command-state",
 	"qcom,mdss-dsi-cabc_movie-on-command-state",
@@ -2218,7 +2214,6 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-hbm2-on-command-state",
 	"qcom,mdss-dsi-hbm3-on-command-state",
 	"qcom,mdss-dsi-hbm-off-command-state",
-#endif
 	"qcom,mdss-dsi-pre-res-switch-state",
 	"qcom,mdss-dsi-res-switch-state",
 	"qcom,mdss-dsi-post-res-switch-state",
@@ -2236,7 +2231,6 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	"qcom,mdss-dsi-acl-on-command-state",
 	"qcom,mdss-dsi-acl-off-command-state",
 	"qcom,mdss-dsi-r692a9-page60-command-state",
@@ -2253,7 +2247,6 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-dispparam-hbm-fod-off-command-state",
 	"qcom,mdss-dsi-doze-hbm-command-state",
 	"qcom,mdss-dsi-doze-lbm-command-state",
-#endif
 };
 
 static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -2550,10 +2543,8 @@ static int dsi_panel_parse_misc_features(struct dsi_panel *panel)
 
 	panel->lp11_init = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-lp11-init");
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	panel->samsung_flag = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-samsung-flag");
-#endif
 	return 0;
 }
 
@@ -2724,7 +2715,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static int dsi_panel_parse_fod_dim_lut(struct dsi_panel *panel,
 		struct dsi_parser_utils *utils)
 {
@@ -2732,13 +2722,18 @@ static int dsi_panel_parse_fod_dim_lut(struct dsi_panel *panel,
 	u32 *array;
 	int count;
 	int len;
-	int rc;
+	int rc = 0;
 	int i;
 
+	if (!mi_is_laurel())
+		return 0;
+
 	len = utils->count_u32_elems(utils->data, "qcom,disp-fod-dim-lut");
-	if (len <= 0 || len % BRIGHTNESS_ALPHA_PAIR_LEN) {
-		pr_err("[%s] invalid number of elements, rc=%d\n",
-				panel->name, rc);
+	if (len <= 0)
+		return 0;
+
+	if (len % BRIGHTNESS_ALPHA_PAIR_LEN) {
+		pr_err("[%s] invalid number of elements\n", panel->name);
 		rc = -EINVAL;
 		goto count_fail;
 	}
@@ -2786,7 +2781,6 @@ count_fail:
 	}
 	return rc;
 }
-#endif
 
 static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 {
@@ -2874,8 +2868,7 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
 		"qcom,mdss-dsi-bl-inverted-dbv");
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (uses_kernel_dimming_fast()) {
+	if (mi_is_laurel() && uses_kernel_dimming_fast()) {
 		rc = utils->read_u32(utils->data, "qcom,disp-doze-lbm-backlight",
 					&val);
 		if (rc) {
@@ -2896,9 +2889,9 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 
 		rc = dsi_panel_parse_fod_dim_lut(panel, utils);
 		if (rc)
-			pr_err("[%s failed to parse fod dim lut\n", panel->name);
+			pr_err("[%s] failed to parse fod dim lut\n",
+			       panel->name);
 	}
-#endif
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -3752,7 +3745,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_panel_parse_white_reg_read_configs(struct dsi_panel *panel)
 
 {
@@ -3765,6 +3757,9 @@ int dsi_panel_parse_white_reg_read_configs(struct dsi_panel *panel)
 		pr_err("Invalid Params\n");
 		return -EINVAL;
 	}
+
+	if (!mi_is_laurel())
+		return 0;
 
 	esd_config = &panel->esd_config;
 	if (!esd_config)
@@ -3807,6 +3802,9 @@ static bool ufshcd_get_hwlevel(void)
 	char hwlevel[16] = {0};
 	int len = 0;
 
+	if (!mi_is_laurel())
+		return false;
+
 	dr_mr = strstr(saved_command_line, "androidboot.hwlevel=");
 	if (dr_mr) {
 		dr_mr += strlen("androidboot.hwlevel=");
@@ -3822,7 +3820,6 @@ static bool ufshcd_get_hwlevel(void)
 	else
 		return false;
 }
-#endif
 
 static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 {
@@ -3840,12 +3837,10 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 	if (!esd_config->esd_enabled)
 		return 0;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (ufshcd_get_hwlevel()) {
+	if (mi_is_laurel() && ufshcd_get_hwlevel()) {
 		pr_info("esd check is unexpect hardware id\n");
 		return 0;
 	}
-#endif
 	rc = utils->read_string(utils->data,
 			"qcom,mdss-dsi-panel-status-check-mode", &string);
 	if (!rc) {
@@ -3853,10 +3848,9 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 			esd_config->status_mode = ESD_MODE_SW_BTA;
 		} else if (!strcmp(string, "reg_read")) {
 			esd_config->status_mode = ESD_MODE_REG_READ;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		} else if (!strcmp(string, "error_flag")) {
+		} else if (mi_is_laurel() &&
+			   !strcmp(string, "error_flag")) {
 			esd_config->status_mode = ESD_MODE_PANEL_ERROR_FLAG;
-#endif
 		} else if (!strcmp(string, "te_signal_check")) {
 			if (panel->panel_mode == DSI_OP_CMD_MODE) {
 				esd_config->status_mode = ESD_MODE_PANEL_TE;
@@ -3888,10 +3882,8 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 		esd_mode = "bta_trigger";
 	} else if (panel->esd_config.status_mode ==  ESD_MODE_PANEL_TE) {
 		esd_mode = "te_check";
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	} else if (panel->esd_config.status_mode == ESD_MODE_PANEL_ERROR_FLAG) {
 		esd_mode = "error_flag";
-#endif
 	}
 
 	pr_info("ESD enabled with mode: %s\n", esd_mode);
@@ -3903,12 +3895,14 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static int dsi_panel_parse_white_config(struct dsi_panel *panel)
 {
 	int rc = 0;
 	struct drm_panel_esd_config *esd_config;
 	struct dsi_parser_utils *utils = &panel->utils;
+
+	if (!mi_is_laurel())
+		return 0;
 
 	esd_config = &panel->esd_config;
 	esd_config->acl_white_enabled = utils->read_bool(utils->data,
@@ -3923,7 +3917,6 @@ static int dsi_panel_parse_white_config(struct dsi_panel *panel)
 
 	return 0;
 }
-#endif
 
 static void dsi_panel_update_util(struct dsi_panel *panel,
 				  struct device_node *parser_node)
@@ -3945,7 +3938,6 @@ end:
 	utils->node = panel->panel_of_node;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static ssize_t msm_fb_lcd_name(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3960,6 +3952,10 @@ static struct kobject *msm_lcd_name;
 static int msm_lcd_name_create_sysfs(void)
 {
 	int ret;
+
+	if (msm_lcd_name)
+		return 0;
+
 	msm_lcd_name = kobject_create_and_add("android_lcd", NULL);
 
 	if (msm_lcd_name == NULL) {
@@ -3975,7 +3971,6 @@ static int msm_lcd_name_create_sysfs(void)
 	}
 	return 0;
 }
-#endif
 
 struct dsi_panel *dsi_panel_get(struct device *parent,
 				struct device_node *of_node,
@@ -3993,9 +3988,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 		return ERR_PTR(-ENOMEM);
 
 	panel->panel_of_node = of_node;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	panel->doze_status = false;
-#endif
 	panel->parent = parent;
 	panel->type = type;
 
@@ -4011,14 +4004,12 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 				"qcom,mdss-dsi-panel-name", NULL);
 	if (!panel->name)
 		panel->name = DSI_PANEL_DEFAULT_LABEL;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	panel->last_acl_flag = false;
-#endif
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	strcpy(g_lcd_id,panel->name);
-	msm_lcd_name_create_sysfs();
-#endif
+	if (mi_is_ginkgo()) {
+		strlcpy(g_lcd_id, panel->name, sizeof(g_lcd_id));
+		msm_lcd_name_create_sysfs();
+	}
 
 	/*
 	 * Set panel type to LCD as default.
@@ -4103,25 +4094,18 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		pr_debug("failed to parse esd config, rc=%d\n", rc);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	rc = dsi_panel_parse_white_config(panel);
 	if (rc)
 		pr_debug("failed to parse white point config, rc=%d\n", rc);
-#endif
 
 	panel->power_mode = SDE_MODE_DPMS_OFF;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	panel->doze_status = false;
-#endif
 
 	drm_panel_init(&panel->drm_panel);
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	panel->fod_hbm_enabled = false;
 	panel->fod_backlight_flag = false;
 	panel->dimming_enabled = false;
 	panel->skip_dimming_on = false;
-#endif
 
 	mutex_init(&panel->panel_lock);
 
@@ -4550,11 +4534,13 @@ int dsi_panel_pre_prepare(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
-#ifndef CONFIG_MACH_XIAOMI_F9S
-	/* If LP11_INIT is set, panel will be powered up during prepare() */
-	if (panel->lp11_init)
+	/*
+	 * If LP11_INIT is set, some panels will be powered up during prepare().
+	 * Keep the Xiaomi F9S (laurel) behavior: still power on during
+	 * pre_prepare.
+	 */
+	if (!mi_is_laurel() && panel->lp11_init)
 		goto error;
-#endif
 
 	rc = dsi_panel_power_on(panel);
 	if (rc) {
@@ -4604,9 +4590,11 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_panel_enable_doze(struct dsi_panel *panel)
 {
+	if (!mi_is_laurel())
+		return -EOPNOTSUPP;
+
 	/* Select doze mode according HBM state */
 	if (panel->hbm_enabled)
 		/* HBM enabled -> use HBM doze mode */
@@ -4615,7 +4603,6 @@ int dsi_panel_enable_doze(struct dsi_panel *panel)
 	/* HBM disabled -> use normal doze mode */
 	return DSI_PANEL_SEND(panel, DOZE_LBM);
 }
-#endif
 
 int dsi_panel_set_lp1(struct dsi_panel *panel)
 {
@@ -4627,12 +4614,10 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 	}
 
 	mutex_lock(&panel->panel_lock);
-	if (!panel->panel_initialized)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		return -EINVAL;
-#else
+	if (!panel->panel_initialized) {
+		rc = mi_is_laurel() ? -EINVAL : 0;
 		goto exit;
-#endif
+	}
 
 	/**
 	 * Consider LP1->LP2->LP1.
@@ -4651,29 +4636,27 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	rc = dsi_panel_enable_doze(panel);
-	if (rc)
-		pr_err("[%s] unable to enable doze mode, rc=%d\n",
-		       panel->name, rc);
-
-	if (panel->fod_hbm_enabled || panel->fod_backlight_flag) {
-		pr_info("skip doze backlight,[hbm=%d][fod_bl=%d]\n",
-			panel->fod_hbm_enabled, panel->fod_backlight_flag);
-	} else {
-		rc = dsi_panel_set_doze_backlight(panel,
-						  panel->aod_last_bl_lvl);
+	if (mi_is_laurel()) {
+		rc = dsi_panel_enable_doze(panel);
 		if (rc)
-			pr_err("failed to set doze mode backlight\n");
+			pr_err("[%s] unable to enable doze mode, rc=%d\n",
+			       panel->name, rc);
+
+		if (panel->fod_hbm_enabled || panel->fod_backlight_flag) {
+			pr_info("skip doze backlight,[hbm=%d][fod_bl=%d]\n",
+				panel->fod_hbm_enabled,
+				panel->fod_backlight_flag);
+		} else {
+			rc = dsi_panel_set_doze_backlight(panel,
+						  panel->aod_last_bl_lvl);
+			if (rc)
+				pr_err("failed to set doze mode backlight\n");
+		}
 	}
 
-	mutex_unlock(&panel->panel_lock);
-	return rc;
-#else
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
-#endif
 }
 
 int dsi_panel_set_lp2(struct dsi_panel *panel)
@@ -4694,12 +4677,12 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	rc = dsi_panel_enable_doze(panel);
-	if (rc)
-		pr_err("[%s] unable to enable doze mode, rc=%d\n",
-		       panel->name, rc);
-#endif
+	if (mi_is_laurel()) {
+		rc = dsi_panel_enable_doze(panel);
+		if (rc)
+			pr_err("[%s] unable to enable doze mode, rc=%d\n",
+			       panel->name, rc);
+	}
 
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4712,24 +4695,20 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 
 	if (!panel) {
 		pr_err("invalid params\n");
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		goto exit;
-#else
 		return -EINVAL;
-#endif
 	}
 
 	mutex_lock(&panel->panel_lock);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (!panel->fod_hbm_enabled || !panel->fod_backlight_flag) {
-		pr_info("fod is open in nolp\n", __func__);
-	} else {
-		pr_info("%s skip send DSI_CMD_SET_NOLP cmd\n", __func__);
-	}
-#else
-	if (!panel->panel_initialized)
+	if (mi_is_laurel()) {
+		if (!panel->fod_hbm_enabled || !panel->fod_backlight_flag) {
+			pr_info("fod is open in nolp\n", __func__);
+		} else {
+			pr_info("%s skip send DSI_CMD_SET_NOLP cmd\n",
+				__func__);
+		}
+	} else if (!panel->panel_initialized) {
 		goto exit;
-#endif
+	}
 
 
 	/**
@@ -4745,15 +4724,13 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		pr_err("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	/* Restore HBM mode when it is enabled by user */
-	if (panel->hbm_enabled) {
+	if (mi_is_laurel() && panel->hbm_enabled) {
+		/* Restore HBM mode when it is enabled by user */
 		rc = dsi_panel_set_hbm(panel, true);
 		if (rc)
 			pr_err("[%s] unable to restore HBM mode, rc=%d\n",
 			       panel->name, rc);
 	}
-#endif
 
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4772,21 +4749,21 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 	mutex_lock(&panel->panel_lock);
 
 	if (panel->lp11_init) {
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		rc = dsi_panel_reset(panel);
-		if (rc) {
-			pr_err("[%s] failed to reset panel, rc=%d\n",
-			       panel->name, rc);
-			goto error;
+		if (mi_is_laurel()) {
+			rc = dsi_panel_reset(panel);
+			if (rc) {
+				pr_err("[%s] failed to reset panel, rc=%d\n",
+				       panel->name, rc);
+				goto error;
+			}
+		} else {
+			rc = dsi_panel_power_on(panel);
+			if (rc) {
+				pr_err("[%s] panel power on failed, rc=%d\n",
+				       panel->name, rc);
+				goto error;
+			}
 		}
-#else
-		rc = dsi_panel_power_on(panel);
-		if (rc) {
-			pr_err("[%s] panel power on failed, rc=%d\n",
-			       panel->name, rc);
-			goto error;
-		}
-#endif
 	}
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_ON);
@@ -4878,7 +4855,6 @@ exit:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 int dsi_panel_set_feature(struct dsi_panel *panel, enum dsi_cmd_set_type type)
 {
 	int rc = 0;
@@ -4887,6 +4863,9 @@ int dsi_panel_set_feature(struct dsi_panel *panel, enum dsi_cmd_set_type type)
 		pr_err("Invalid params\n");
 		return -EINVAL;
 	}
+
+	if (!mi_is_ginkgo())
+		return -EOPNOTSUPP;
 
 	if ((!panel_init_judge) ||  (!backlight_val)) {
 		pr_err("xinj: con't set cmds type=%d\n",type);
@@ -4937,7 +4916,6 @@ int dsi_panel_set_feature(struct dsi_panel *panel, enum dsi_cmd_set_type type)
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
-#endif
 
 int dsi_panel_send_qsync_on_dcs(struct dsi_panel *panel,
 		int ctrl_idx)
@@ -5147,31 +5125,26 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	mutex_lock(&panel->panel_lock);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (rc) {
-		pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
-		       panel->name, rc);
-	}
-	panel->panel_initialized = true;
-
-	/* Restore HBM mode if enabled by user */
-	if (panel->hbm_enabled)
-		dsi_panel_set_hbm(panel, panel->hbm_enabled);
-
-	panel->fod_hbm_enabled = false;
-	panel->fod_backlight_flag = false;
-	panel->dimming_enabled = false;
-#else
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
 		       panel->name, rc);
-	else {
+
+	if (mi_is_laurel()) {
+		if (!rc)
+			panel->panel_initialized = true;
+
+		/* Restore HBM mode if enabled by user */
+		if (panel->hbm_enabled)
+			dsi_panel_set_hbm(panel, panel->hbm_enabled);
+
+		panel->fod_hbm_enabled = false;
+		panel->fod_backlight_flag = false;
+		panel->dimming_enabled = false;
+	} else if (!rc) {
 		panel->panel_initialized = true;
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		panel_init_judge = true;
-#endif
+		if (mi_is_ginkgo())
+			panel_init_judge = true;
 	}
-#endif
 
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -5188,24 +5161,20 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (panel->last_acl_flag == 1)
-#endif
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_POST_ON);
+	if (!mi_is_laurel() || panel->last_acl_flag == 1)
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_POST_ON);
 	if (rc) {
 		pr_err("[%s] failed to send DSI_CMD_SET_POST_ON cmds, rc=%d\n",
 		       panel->name, rc);
 		goto error;
 	}
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	panel_init_judge = true;
-#endif
+	if (mi_is_ginkgo())
+		panel_init_judge = true;
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_panel_write_panel_register(struct dsi_panel *panel, int value)
 {
 	int rc = 0;
@@ -5214,6 +5183,9 @@ int dsi_panel_write_panel_register(struct dsi_panel *panel, int value)
 		pr_err("invalid params\n");
 		return -EINVAL;
 	}
+
+	if (!mi_is_laurel())
+		return -EOPNOTSUPP;
 
 	switch (value) {
 	case ACL_OFF:
@@ -5240,7 +5212,6 @@ int dsi_panel_write_panel_register(struct dsi_panel *panel, int value)
 error:
 	return rc;
 }
-#endif
 
 int dsi_panel_pre_disable(struct dsi_panel *panel)
 {
@@ -5262,10 +5233,10 @@ int dsi_panel_pre_disable(struct dsi_panel *panel)
 
 error:
 	mutex_unlock(&panel->panel_lock);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	panel->panel_initialized = false;
-	panel_init_judge =  false;
-#endif
+	if (mi_is_ginkgo()) {
+		panel->panel_initialized = false;
+		panel_init_judge = false;
+	}
 	return rc;
 }
 
@@ -5306,18 +5277,17 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		}
 	}
 	panel->panel_initialized = false;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	panel->doze_status = false;
-	panel->fod_hbm_enabled = false;
-	panel->fod_backlight_flag = false;
-	panel->dimming_enabled = false;
-#else
-	panel->power_mode = SDE_MODE_DPMS_OFF;
-#endif
+	if (mi_is_laurel()) {
+		panel->doze_status = false;
+		panel->fod_hbm_enabled = false;
+		panel->fod_backlight_flag = false;
+		panel->dimming_enabled = false;
+	} else {
+		panel->power_mode = SDE_MODE_DPMS_OFF;
+	}
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	panel_init_judge = false;
-#endif
+	if (mi_is_ginkgo())
+		panel_init_judge = false;
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -5340,8 +5310,7 @@ int dsi_panel_unprepare(struct dsi_panel *panel)
 		goto error;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (!panel->lp11_init) {
+	if (mi_is_laurel() && !panel->lp11_init) {
 		rc = dsi_panel_power_off(panel);
 		if (rc) {
 			pr_err("[%s] panel power_Off failed, rc=%d\n",
@@ -5349,7 +5318,6 @@ int dsi_panel_unprepare(struct dsi_panel *panel)
 			goto error;
 		}
 	}
-#endif
 
 error:
 	mutex_unlock(&panel->panel_lock);
@@ -5367,8 +5335,16 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (panel->lp11_init) {
+	if (mi_is_laurel()) {
+		if (panel->lp11_init) {
+			rc = dsi_panel_power_off(panel);
+			if (rc) {
+				pr_err("[%s] panel power_Off failed, rc=%d\n",
+				       panel->name, rc);
+				goto error;
+			}
+		}
+	} else {
 		rc = dsi_panel_power_off(panel);
 		if (rc) {
 			pr_err("[%s] panel power_Off failed, rc=%d\n",
@@ -5376,14 +5352,6 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 			goto error;
 		}
 	}
-#else
-	rc = dsi_panel_power_off(panel);
-	if (rc) {
-		pr_err("[%s] panel power_Off failed, rc=%d\n",
-		       panel->name, rc);
-		goto error;
-	}
-#endif
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;

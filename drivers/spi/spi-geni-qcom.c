@@ -24,16 +24,19 @@
 #include <linux/pm_runtime.h>
 #include <linux/qcom-geni-se.h>
 #include <linux/msm_gpi.h>
+#include <linux/mi_detect.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-geni-qcom.h>
 #include <soc/qcom/boot_stats.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
-#ifdef CONFIG_MACH_XIAOMI_C3J
-#define SPI_XFER_TIMEOUT_MS	(1000)
-#else
-#define SPI_XFER_TIMEOUT_MS	(250)
-#endif
+
+static inline unsigned int spi_xfer_timeout_ms(void)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return 1000;
+	return 250;
+}
 #define SPI_AUTO_SUSPEND_DELAY	(250)
 /* SPI SE specific registers */
 #define SE_SPI_CPHA		(0x224)
@@ -193,7 +196,6 @@ struct spi_geni_master {
 	u32 miso_sampling_ctrl_val;
 };
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 /******************************************************************************
  * *This functionis for get spi_geni_master->dev
  * *spi_master: struct spi_device ->master
@@ -201,11 +203,12 @@ struct spi_geni_master {
  ******************************************************************************/
 struct device *lct_get_spi_geni_master_dev(struct spi_master *spi)
 {
+	if (!IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) || !mi_is_ginkgo())
+		return NULL;
 	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
 	return geni_mas->dev;
 }
 EXPORT_SYMBOL(lct_get_spi_geni_master_dev);
-#endif
 
 static void spi_slv_setup(struct spi_geni_master *mas);
 static void ssr_spi_force_suspend(struct device *dev);
@@ -1390,7 +1393,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 			spi->slave_state = true;
 		mutex_unlock(&mas->spi_ssr.ssr_lock);
 		timeout = wait_for_completion_timeout(&mas->xfer_done,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					msecs_to_jiffies(spi_xfer_timeout_ms()));
 		mutex_lock(&mas->spi_ssr.ssr_lock);
 		if (mas->spi_ssr.is_ssr_down)
 			goto err_ssr_transfer_one;
@@ -1440,7 +1443,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 				timeout =
 				wait_for_completion_timeout(
 					&mas->tx_cb,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					msecs_to_jiffies(spi_xfer_timeout_ms()));
 				if (timeout <= 0) {
 					GENI_SE_ERR(mas->ipc, true, mas->dev,
 					"Tx[%d] timeout%lu\n", i, timeout);
@@ -1452,7 +1455,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 				timeout =
 				wait_for_completion_timeout(
 					&mas->rx_cb,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					msecs_to_jiffies(spi_xfer_timeout_ms()));
 				if (timeout <= 0) {
 					GENI_SE_ERR(mas->ipc, true, mas->dev,
 					 "Rx[%d] timeout%lu\n", i, timeout);
@@ -2050,14 +2053,41 @@ static void ssr_spi_force_resume(struct device *dev)
 	mutex_unlock(&mas->spi_ssr.ssr_lock);
 }
 
+static int spi_geni_system_suspend(struct device *dev)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return 0;
+	return spi_geni_suspend(dev);
+}
+
+static int spi_geni_system_resume(struct device *dev)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return 0;
+	return spi_geni_resume(dev);
+}
+
+static int spi_geni_system_suspend_late(struct device *dev)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return spi_geni_suspend(dev);
+	return 0;
+}
+
+static int spi_geni_system_resume_early(struct device *dev)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return spi_geni_resume(dev);
+	return 0;
+}
+
 static const struct dev_pm_ops spi_geni_pm_ops = {
 	SET_RUNTIME_PM_OPS(spi_geni_runtime_suspend,
 					spi_geni_runtime_resume, NULL)
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	SET_LATE_SYSTEM_SLEEP_PM_OPS(spi_geni_suspend, spi_geni_resume)
-#else
-	SET_SYSTEM_SLEEP_PM_OPS(spi_geni_suspend, spi_geni_resume)
-#endif
+	.suspend = spi_geni_system_suspend,
+	.resume = spi_geni_system_resume,
+	.suspend_late = spi_geni_system_suspend_late,
+	.resume_early = spi_geni_system_resume_early,
 };
 
 static const struct of_device_id spi_geni_dt_match[] = {

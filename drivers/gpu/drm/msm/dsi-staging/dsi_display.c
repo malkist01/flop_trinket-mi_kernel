@@ -20,6 +20,8 @@
 #include <linux/err.h>
 #include <linux/kernfs.h>
 
+#include <linux/mi_detect.h>
+
 #include "msm_drv.h"
 #include "sde_connector.h"
 #include "msm_mmu.h"
@@ -49,25 +51,27 @@
 
 #define DSI_CLOCK_BITRATE_RADIX 10
 #define MAX_TE_SOURCE_ID  2
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #define AOD_BRIGHTNESS 190
-#endif
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
+static inline bool dsi_is_c3j_ginkgo(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+}
+
+static inline bool dsi_is_f9s_laurel(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
+}
+
 static struct dsi_display *whitep_display;
-#if defined(CONFIG_TOUCHSCREEN_XIAOMI_C3J)
-extern char g_lcd_id[128];
-#endif
 
-extern int backlight_hbm_set(int hbm_mode);
+extern char g_lcd_id[128] __weak;
+extern int backlight_hbm_set(int hbm_mode) __weak;
 extern char *saved_command_line;
-#endif
 
 DEFINE_MUTEX(dsi_display_clk_mutex);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
-#endif
+extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH] __weak;
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
 static char dsi_display_secondary[MAX_CMDLINE_PARAM_LEN];
 static struct dsi_display_boot_param boot_displays[MAX_DSI_ACTIVE_DISPLAY] = {
@@ -80,11 +84,9 @@ static const struct of_device_id dsi_display_dt_match[] = {
 	{}
 };
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 struct dsi_display *primary_display;
 
 static struct kernfs_node *dsi_link;
-#endif
 
 static void dsi_display_mask_ctrl_error_interrupts(struct dsi_display *display,
 			u32 mask, bool enable)
@@ -216,9 +218,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 {
 	struct dsi_display *dsi_display = display;
 	struct dsi_panel *panel;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	struct drm_device *drm_dev;
-#endif
 	u32 bl_scale, bl_scale_ad;
 	u64 bl_temp;
 	int rc = 0;
@@ -227,9 +227,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		return -EINVAL;
 
 	panel = dsi_display->panel;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	drm_dev = dsi_display->drm_dev;
-#endif
 
 	mutex_lock(&panel->panel_lock);
 	if (!dsi_panel_initialized(panel)) {
@@ -257,8 +255,8 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		goto error;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (drm_dev && drm_dev->sde_power_mode == SDE_MODE_DPMS_LP1) {
+	if (dsi_is_f9s_laurel() && drm_dev &&
+	    drm_dev->sde_power_mode == SDE_MODE_DPMS_LP1) {
 		panel->aod_last_bl_lvl = (u32)bl_temp;
 		if (panel->fod_hbm_enabled || panel->fod_backlight_flag) {
 			pr_info("FOD HBM open, skip doze backlight:%u [hbm=%d][fod_bl=%d]\n",
@@ -269,7 +267,8 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 			if (rc)
 				pr_err("failed to set doze mode backlight\n");
 		}
-	} else if (drm_dev && drm_dev->sde_power_mode == SDE_MODE_DPMS_LP2) {
+	} else if (dsi_is_f9s_laurel() && drm_dev &&
+		   drm_dev->sde_power_mode == SDE_MODE_DPMS_LP2) {
 		panel->aod_last_bl_lvl = (u32)bl_temp;
 		if (panel->fod_hbm_enabled || panel->fod_backlight_flag) {
 			pr_info("FOD HBM open, skip doze backlight in lp2\n");
@@ -281,13 +280,8 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	} else {
 		rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
 		if (rc)
-			pr_err("failed to set backlight\n");
+			pr_err("unable to set backlight\n");
 	}
-#else
-	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
-	if (rc)
-		pr_err("unable to set backlight\n");
-#endif
 
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_OFF);
@@ -302,7 +296,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #define DISPPARAM_DIMMING			0x0000F00
 #define DISPPARAM_HBM_FOD_ON			0x0020000
 #define DISPPARAM_HBM_FOD2NORM			0x0030000
@@ -336,6 +329,9 @@ int dsi_display_param_store(struct dsi_display *display, uint32_t param)
 	int rc = 0;
 	static u8 backlight_delta = 0;
 	u32 resend_backlight;
+
+	if (!dsi_is_f9s_laurel())
+		return -EOPNOTSUPP;
 
 	if (!display || !display->panel) {
 		pr_err("invalid display or panel ptr parameter\n");
@@ -596,7 +592,6 @@ error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
-#endif
 
 static int dsi_display_cmd_engine_enable(struct dsi_display *display)
 {
@@ -827,11 +822,13 @@ error:
 		display->panel->esd_config.esd_enabled = false;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static int dsi_display_status_check_error_flag(struct dsi_display *display)
 {
 	int index, rc = 1;
 	int count = 0, read_value = 0;
+
+	if (!dsi_is_f9s_laurel())
+		return true;
 
 	if (display == NULL)
 		return rc;
@@ -865,7 +862,6 @@ static int dsi_display_status_check_error_flag(struct dsi_display *display)
 	}
 	return true;
 }
-#endif
 
 /* Allocate memory for cmd dma tx buffer */
 static int dsi_host_alloc_cmd_tx_buffer(struct dsi_display *display)
@@ -939,7 +935,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static bool dsi_display_white_reg_read(struct dsi_panel *panel)
 {
 	int i, j = 0;
@@ -948,6 +943,9 @@ static bool dsi_display_white_reg_read(struct dsi_panel *panel)
 	struct drm_panel_esd_config *config;
 	int temp_sansumg_x_0, temp_sansumg_x_1, temp_sansung_y_0,
 		temp_sansung_y_1, temp_gvo_x, temp_gvo_y;
+
+	if (!dsi_is_f9s_laurel())
+		return false;
 
 	if (!panel) {
 		return false;
@@ -987,7 +985,6 @@ static bool dsi_display_white_reg_read(struct dsi_panel *panel)
 
 	return true;
 }
-#endif
 
 static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
 {
@@ -1065,7 +1062,6 @@ static void dsi_display_parse_te_data(struct dsi_display *display)
 	display->te_source = val;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static char dcs_cmd[2] = {0x00, 0x00}; /* DTYPE_DCS_READ */
 static struct dsi_cmd_desc dcs_read_cmd = {
        {0, 6, MIPI_DSI_MSG_REQ_ACK, 0, 5, sizeof(dcs_cmd), dcs_cmd, 0, 0},
@@ -1079,6 +1075,9 @@ static int dsi_display_read_reg(struct dsi_display_ctrl *ctrl, char cmd0,
 	int rc = 0;
 	struct dsi_cmd_desc *cmds;
 	u32 flags = 0;
+
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
 
 	if (!ctrl || !ctrl->ctrl)
 		return -EINVAL;
@@ -1129,6 +1128,9 @@ static int dsi_display_write_reg_page(struct dsi_display_ctrl *ctrl, char cmd0,
 	struct dsi_cmd_desc *cmds;
 	u32 flags = 0;
 
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
+
 	if (!ctrl || !ctrl->ctrl)
 		return -EINVAL;
 
@@ -1156,7 +1158,6 @@ static int dsi_display_write_reg_page(struct dsi_display_ctrl *ctrl, char cmd0,
 
 	return rc;
  }
-#endif
 
 static int dsi_display_read_status(struct dsi_display_ctrl *ctrl,
 		struct dsi_panel *panel)
@@ -1221,17 +1222,17 @@ static int dsi_display_validate_status(struct dsi_display_ctrl *ctrl,
 		 * panel status read successfully.
 		 * check for validity of the data read back.
 		 */
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		if (panel->esd_config.acl_white_enabled)
+		if (dsi_is_f9s_laurel() && panel->esd_config.acl_white_enabled) {
 			rc = dsi_display_white_reg_read(panel);
-		if (!rc) {
-			rc = -EINVAL;
-			pr_err("failed to read white point\n");
-			goto exit;
+			if (!rc) {
+				rc = -EINVAL;
+				pr_err("failed to read white point\n");
+				goto exit;
+			}
 		}
-		if (panel->esd_config.esd_enabled &&
-		    (panel->esd_config.status_mode == ESD_MODE_REG_READ))
-#endif
+		if (!dsi_is_f9s_laurel() ||
+		    (panel->esd_config.esd_enabled &&
+		     (panel->esd_config.status_mode == ESD_MODE_REG_READ)))
 		rc = dsi_display_validate_reg_read(panel);
 		if (!rc) {
 			rc = -EINVAL;
@@ -1323,7 +1324,6 @@ static int dsi_display_status_check_te(struct dsi_display *display)
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_display_check_white_status(struct drm_connector *connector, void *display,
 				   bool te_check_override)
 {
@@ -1332,6 +1332,9 @@ int dsi_display_check_white_status(struct drm_connector *connector, void *displa
 	u32 status_mode;
 	int rc = 0x1;
 	u32 mask;
+
+	if (!dsi_is_f9s_laurel())
+		return -EOPNOTSUPP;
 
 	if (!dsi_display || !dsi_display->panel)
 		return -EINVAL;
@@ -1373,7 +1376,6 @@ release_panel_lock:
 
 	return rc;
 }
-#endif
 
 int dsi_display_check_status(struct drm_connector *connector, void *display,
 					bool te_check_override)
@@ -1414,12 +1416,10 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	if (te_check_override && gpio_is_valid(dsi_display->disp_te_gpio))
 		status_mode = ESD_MODE_PANEL_TE;
 
-#ifndef CONFIG_MACH_XIAOMI_F9S
 	if (status_mode == ESD_MODE_PANEL_TE) {
 		rc = dsi_display_status_check_te(dsi_display);
 		goto exit;
 	}
-#endif
 
 	dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			     DSI_ALL_CLKS, DSI_CLK_ON);
@@ -1429,21 +1429,14 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	dsi_display_set_ctrl_esd_check_flag(dsi_display, true);
 	dsi_display_mask_ctrl_error_interrupts(dsi_display, mask, true);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	if (status_mode == ESD_MODE_PANEL_ERROR_FLAG) {
-		rc = dsi_display_status_check_error_flag(dsi_display);
+		if (dsi_is_f9s_laurel()) {
+			rc = dsi_display_status_check_error_flag(dsi_display);
+		} else {
+			pr_warn("Unsupported ESD check mode: %d\n", status_mode);
+			panel->esd_config.esd_enabled = false;
+		}
 	} else if (status_mode == ESD_MODE_REG_READ) {
-		rc = dsi_display_status_reg_read(dsi_display);
-	} else if (status_mode == ESD_MODE_SW_BTA) {
-		rc = dsi_display_status_bta_request(dsi_display);
-	} else if (status_mode == ESD_MODE_PANEL_TE) {
-		rc = dsi_display_status_check_te(dsi_display);
-	} else {
-		pr_warn("unsupported check status mode\n");
-		panel->esd_config.esd_enabled = false;
-	}
-#else
-	if (status_mode == ESD_MODE_REG_READ) {
 		rc = dsi_display_status_reg_read(dsi_display);
 	} else if (status_mode == ESD_MODE_SW_BTA) {
 		rc = dsi_display_status_bta_request(dsi_display);
@@ -1451,28 +1444,20 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		pr_warn("Unsupported ESD check mode: %d\n", status_mode);
 		panel->esd_config.esd_enabled = false;
 	}
-#endif
 
 	/* Unmask error interrupts if check passed */
 	if (rc > 0) {
 		dsi_display_set_ctrl_esd_check_flag(dsi_display, false);
 		dsi_display_mask_ctrl_error_interrupts(dsi_display,
 						       mask, false);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	} else {
-		/* Handle Panel failures during display disable sequence */
-		atomic_set(&panel->esd_recovery_pending, 1);
-#endif
 	}
 	dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			     DSI_ALL_CLKS, DSI_CLK_OFF);
 
-#ifndef CONFIG_MACH_XIAOMI_F9S
 exit:
 	/* Handle Panel failures during display disable sequence */
 	if (rc <= 0)
 		atomic_set(&panel->esd_recovery_pending, 1);
-#endif
 
 release_panel_lock:
 	dsi_panel_release_panel_lock(panel);
@@ -1586,9 +1571,11 @@ static void _dsi_display_continuous_clk_ctrl(struct dsi_display *display,
 	display_for_each_ctrl(i, display) {
 		ctrl = &display->ctrl[i];
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		dsi_ctrl_set_continuous_clk(ctrl->ctrl, enable);
-#else
+		if (dsi_is_f9s_laurel()) {
+			dsi_ctrl_set_continuous_clk(ctrl->ctrl, enable);
+			continue;
+		}
+
 		/**
 		 * For phy ver 4.0 chipsets, configure DSI controller and
 		 * DSI PHY to force clk lane to HS mode always whereas
@@ -1601,7 +1588,6 @@ static void _dsi_display_continuous_clk_ctrl(struct dsi_display *display,
 		} else {
 			dsi_ctrl_set_continuous_clk(ctrl->ctrl, enable);
 		}
-#endif
 	}
 }
 
@@ -1691,114 +1677,91 @@ int dsi_display_set_power(struct drm_connector *connector,
 	struct dsi_display *display = disp;
 	int rc = 0;
 	struct drm_device *dev = NULL;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	struct msm_drm_notifier notify_data;
-#endif
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	struct drm_notify_data g_notify_data;
 	int event = 0;
-#endif
+	bool notify_c3j = false;
 
 	if (!display || !display->panel) {
 		pr_err("invalid display/panel\n");
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (!connector || !connector->dev) {
-		pr_err("invalid connector or dev ptr\n");
-		return -EINVAL;
-	} else {
+	if (dsi_is_f9s_laurel()) {
+		if (!connector || !connector->dev) {
+			pr_err("invalid connector or dev ptr\n");
+			return -EINVAL;
+		}
 		dev = connector->dev;
+		notify_data.data = &power_mode;
+		notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
 	}
-#endif
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-	    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL)) {
+	if (dsi_is_c3j_ginkgo() &&
+	    ((strnstr(saved_command_line, "tianma",
+		     strlen(saved_command_line)) != NULL) ||
+	     (strnstr(saved_command_line, "shenchao",
+		     strlen(saved_command_line)) != NULL))) {
 		if (!connector || !connector->dev) {
 			pr_err("invalid connector/dev\n");
 			return -EINVAL;
-		} else {
-			dev = connector->dev;
-			event = dev->doze_state;
 		}
+		dev = connector->dev;
+		event = dev->doze_state;
 		g_notify_data.data = &event;
+		notify_c3j = true;
 	}
-#endif
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	notify_data.data = &power_mode;
-	notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
-#endif
 
 	switch (power_mode) {
 	case SDE_MODE_DPMS_LP1:
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
+		if (dsi_is_f9s_laurel())
+			msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
 					    &notify_data);
+		else if (notify_c3j)
+			drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK,
+					       &g_notify_data);
+
 		rc = dsi_panel_set_lp1(display->panel);
-		msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notify_data);
-#else
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-		    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL))
-			drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
-#endif
-		rc = dsi_panel_set_lp1(display->panel);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-		    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL))
+
+		if (dsi_is_f9s_laurel())
+			msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notify_data);
+		else if (notify_c3j)
 			drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
-#endif
-#endif
 		break;
 	case SDE_MODE_DPMS_LP2:
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
+		if (dsi_is_f9s_laurel())
+			msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
 					    &notify_data);
+		else if (notify_c3j)
+			drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK,
+					       &g_notify_data);
+
 		rc = dsi_panel_set_lp2(display->panel);
-		msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notify_data);
-#else
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-		    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL))
-			drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
-#endif
-		rc = dsi_panel_set_lp2(display->panel);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-		    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL))
+
+		if (dsi_is_f9s_laurel())
+			msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK, &notify_data);
+		else if (notify_c3j)
 			drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
-#endif
-#endif
 		break;
 	case SDE_MODE_DPMS_ON:
-#ifdef CONFIG_MACH_XIAOMI_F9S
 		if (display->panel->power_mode == SDE_MODE_DPMS_LP1 ||
 			display->panel->power_mode == SDE_MODE_DPMS_LP2) {
-			msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
+			if (dsi_is_f9s_laurel())
+				msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK,
 						    &notify_data);
+			else if (notify_c3j)
+				drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK,
+						       &g_notify_data);
+
 			rc = dsi_panel_set_nolp(display->panel);
-			msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
+
+			if (dsi_is_f9s_laurel())
+				msm_drm_notifier_call_chain(MSM_DRM_EVENT_BLANK,
 						    &notify_data);
+			else if (notify_c3j)
+				drm_notifier_call_chain(DRM_EVENT_BLANK,
+						       &g_notify_data);
 		}
-#else
-		if (display->panel->power_mode == SDE_MODE_DPMS_LP1 ||
-			display->panel->power_mode == SDE_MODE_DPMS_LP2) {
-#ifdef CONFIG_MACH_XIAOMI_C3J
-			if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-			    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL))
-				drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
-#endif
-			rc = dsi_panel_set_nolp(display->panel);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-			if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-			    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL))
-				drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
-#endif
-		}
-#endif
 		break;
 	case SDE_MODE_DPMS_OFF:
 	default:
@@ -5706,7 +5669,6 @@ static ssize_t sysfs_dynamic_dsi_clk_write(struct device *dev,
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static ssize_t dsi_display_set_cabc(struct device *dev,
 				    struct device_attribute *attr,
 				    const char *buf, size_t len)
@@ -5714,6 +5676,9 @@ static ssize_t dsi_display_set_cabc(struct device *dev,
 	int rc = 0;
 	int param = 0;
 	struct dsi_display *display;
+
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
 
 	display = dev_get_drvdata(dev);
 	if (!display) {
@@ -5749,6 +5714,9 @@ static ssize_t dsi_display_set_cabc_movie(struct device *dev,
 	int rc = 0;
 	int param = 0;
 	struct dsi_display *display;
+
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
 
 	display = dev_get_drvdata(dev);
 	if (!display) {
@@ -5786,6 +5754,9 @@ static ssize_t dsi_display_set_cabc_still(struct device *dev,
 	int param = 0;
 	struct dsi_display *display;
 
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
+
 	display = dev_get_drvdata(dev);
 	if (!display) {
 		pr_err("Invalid display\n");
@@ -5821,6 +5792,9 @@ static ssize_t dsi_display_set_cabc_compatible(struct device *dev,
 	int rc = 0;
 	int param = 0;
 	struct dsi_display *display;
+
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
 
 	display = dev_get_drvdata(dev);
 	if (!display) {
@@ -5897,6 +5871,9 @@ static ssize_t dsi_display_set_hbm(struct device *dev,
 	int param = 0;
 	struct dsi_display *display;
 
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
+
 	display = dev_get_drvdata(dev);
 	if (!display) {
 		pr_err("Invalid display\n");
@@ -5930,6 +5907,12 @@ static ssize_t dsi_display_set_hbm(struct device *dev,
 	return len;
 }
 
+static ssize_t hbm_show(struct device *dev, struct device_attribute *attr,
+			char *buf);
+static ssize_t hbm_store(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count);
+static DEVICE_ATTR_RW(hbm);
+
 static DEVICE_ATTR(dsi_display_cabc, 0644, dsi_display_get_cabc, dsi_display_set_cabc);
 static DEVICE_ATTR(dsi_display_hbm, 0644, dsi_display_get_hbm, dsi_display_set_hbm);
 static DEVICE_ATTR(dsi_display_cabc_movie, 0644, dsi_display_get_cabc,
@@ -5937,7 +5920,6 @@ static DEVICE_ATTR(dsi_display_cabc_movie, 0644, dsi_display_get_cabc,
 static DEVICE_ATTR(dsi_display_cabc_still, 0644, dsi_display_get_cabc,
 		   dsi_display_set_cabc_still);
 /* Shorter aliases for compatibility with custom ROMs */
-static DEVICE_ATTR(hbm, 0644, dsi_display_get_hbm, dsi_display_set_hbm);
 static DEVICE_ATTR(cabc, 0644, dsi_display_get_cabc, dsi_display_set_cabc_compatible);
 
 static struct attribute *dsi_display_feature_attrs[] = {
@@ -5959,6 +5941,9 @@ static int dsi_display_feature_create_sysfs(struct dsi_display *display)
 	int ret = 0;
 	struct device *dev = &display->pdev->dev;
 
+	if (!dsi_is_c3j_ginkgo())
+		return 0;
+
 	ret = sysfs_create_group(&dev->kobj, &dsi_display_feature_attrs_group);
 	if (ret) {
 		pr_err("%s failed \n", __func__);
@@ -5975,6 +5960,9 @@ static ssize_t dsi_display_get_whitepoint(struct device *dev,
 
 	ssize_t rc = 0;
 	struct dsi_display *display;
+
+	if (!dsi_is_c3j_ginkgo())
+		return -EOPNOTSUPP;
 
 	display = whitep_display;
 	if (!display) {
@@ -5998,17 +5986,19 @@ static ssize_t dsi_display_get_whitepoint(struct device *dev,
 
 	ctrl = &display->ctrl[display->cmd_master_idx];
 
-#if defined(CONFIG_TOUCHSCREEN_XIAOMI_C3J)
-	if ((strstr(g_lcd_id, "huaxing")!= NULL)) {
-		rc = dsi_display_write_reg_page(ctrl, 0x00, 0x60, buf,
-						sizeof(buf));
-		rc = dsi_display_read_reg(ctrl, 0xf4, 0x00, buf, sizeof(buf));
-	} else {
-		rc = dsi_display_write_reg_page(ctrl, 0xff, 0x10, buf,
-						sizeof(buf));
-		rc = dsi_display_read_reg(ctrl, 0xa1, 0, buf, sizeof(buf));
+	if (IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_C3J)) {
+		if ((strstr(g_lcd_id, "huaxing") != NULL)) {
+			rc = dsi_display_write_reg_page(ctrl, 0x00, 0x60, buf,
+						  sizeof(buf));
+			rc = dsi_display_read_reg(ctrl, 0xf4, 0x00, buf,
+					  sizeof(buf));
+		} else {
+			rc = dsi_display_write_reg_page(ctrl, 0xff, 0x10, buf,
+						  sizeof(buf));
+			rc = dsi_display_read_reg(ctrl, 0xa1, 0, buf,
+					  sizeof(buf));
+		}
 	}
-#endif
 	if (rc <= 0) {
 		pr_err("get whitepoint failed rc=%d\n", rc);
 		goto exit;
@@ -6030,6 +6020,9 @@ static struct kobject *msm_whitepoint;
 static int dsi_display_whitepoint_create_sysfs(void)
 {
 	int ret;
+
+	if (!dsi_is_c3j_ginkgo())
+		return 0;
 	msm_whitepoint = kobject_create_and_add("android_whitepoint", NULL);
 	if (msm_whitepoint == NULL) {
 		pr_info("msm_whitepoint_create_sysfs_ failed\n");
@@ -6046,7 +6039,6 @@ static int dsi_display_whitepoint_create_sysfs(void)
 	pr_info("xinj:%s success\n",__func__);
 	return ret;
 }
-#endif
 
 static DEVICE_ATTR(dynamic_dsi_clock, 0644,
 			sysfs_dynamic_dsi_clk_read,
@@ -6096,12 +6088,14 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static ssize_t sysfs_fod_ui_read(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct dsi_display *display;
 	bool status;
+
+	if (!dsi_is_f9s_laurel())
+		return -EOPNOTSUPP;
 
 	display = dev_get_drvdata(dev);
 	if (!display) {
@@ -6119,6 +6113,12 @@ static ssize_t hbm_show(struct device *dev, struct device_attribute *attr,
 {
 	struct dsi_display *display = dev_get_drvdata(dev);
 
+	if (dsi_is_c3j_ginkgo())
+		return dsi_display_get_hbm(dev, attr, buf);
+
+	if (!dsi_is_f9s_laurel())
+		return -EOPNOTSUPP;
+
 	if (!display->panel) {
 		pr_err("Invalid display\n");
 		return -EINVAL;
@@ -6134,6 +6134,12 @@ static ssize_t hbm_store(struct device *dev, struct device_attribute *attr,
 	struct dsi_display *display = dev_get_drvdata(dev);
 	bool status;
 	int rc;
+
+	if (dsi_is_c3j_ginkgo())
+		return dsi_display_set_hbm(dev, attr, buf, count);
+
+	if (!dsi_is_f9s_laurel())
+		return -EOPNOTSUPP;
 
 	display = dev_get_drvdata(dev);
 	if (!display) {
@@ -6158,7 +6164,6 @@ static ssize_t hbm_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(fod_ui, 0444,
 			sysfs_fod_ui_read,
 			NULL);
-static DEVICE_ATTR_RW(hbm);
 
 static struct attribute *display_fs_attrs[] = {
 	&dev_attr_fod_ui.attr,
@@ -6168,64 +6173,58 @@ static struct attribute *display_fs_attrs[] = {
 static struct attribute_group display_fs_attrs_group = {
 	.attrs = display_fs_attrs,
 };
-#endif
 
 static int dsi_display_sysfs_init(struct dsi_display *display)
 {
 	int rc = 0;
 	struct device *dev = &display->pdev->dev;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	struct device *soc_dev = dev->parent;
 
-	if (!soc_dev)
-		pr_err("[%s] unable to determine parent device\n",
-		       display->name);
-	else {
-		struct kobject *dsi_kobj = &dev->kobj;
-		struct kernfs_node *dsi_node = dsi_kobj->sd;
+	if (dsi_is_f9s_laurel()) {
+		struct device *soc_dev = dev->parent;
 
-		kernfs_get(dsi_node);
+		if (!soc_dev) {
+			pr_err("[%s] unable to determine parent device\n",
+			       display->name);
+		} else {
+			struct kobject *dsi_kobj = &dev->kobj;
+			struct kernfs_node *dsi_node = dsi_kobj->sd;
 
-		dsi_link = kernfs_create_link(soc_dev->kobj.sd,
+			kernfs_get(dsi_node);
+
+			dsi_link = kernfs_create_link(soc_dev->kobj.sd,
 					      "soc:qcom,dsi-display-primary",
 					      dsi_node);
-		if (IS_ERR_OR_NULL(dsi_link))
-			pr_err("[%s] unable to create dsi-display symlink\n",
+			if (IS_ERR_OR_NULL(dsi_link))
+				pr_err("[%s] unable to create dsi-display symlink\n",
+				       display->name);
+
+			kernfs_put(dsi_node);
+		}
+
+		rc = sysfs_create_group(&dev->kobj, &display_fs_attrs_group);
+		if (rc) {
+			pr_err("[%s] failed to create display device attributes\n",
 			       display->name);
-
-		kernfs_put(dsi_node);
+			return rc;
+		}
 	}
-
-	rc = sysfs_create_group(&dev->kobj, &display_fs_attrs_group);
-	if (rc) {
-		pr_err("[%s] failed to create display device attributes\n",
-		       display->name);
-
-		return rc;
-	}
-#endif
 
 	if (display->panel->panel_mode == DSI_OP_CMD_MODE)
 		rc = sysfs_create_group(&dev->kobj,
 			&dynamic_dsi_clock_fs_attrs_group);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	if (rc) {
 		pr_err("[%s] failed to create display device attributes\n",
 		       display->name);
-		goto err_dyn_dsi_attr;
+		if (dsi_is_f9s_laurel())
+			sysfs_remove_group(&dev->kobj, &display_fs_attrs_group);
+		return rc;
 	}
 
 	pr_debug("[%s] dsi_display_sysfs_init:%d,panel mode:%d\n",
 		display->name, rc, display->panel->panel_mode);
 
 	return 0;
-
-err_dyn_dsi_attr:
-	sysfs_remove_group(&dev->kobj, &display_fs_attrs_group);
-#endif
-
-	return rc;
 }
 
 static int dsi_display_sysfs_deinit(struct dsi_display *display)
@@ -6236,25 +6235,27 @@ static int dsi_display_sysfs_deinit(struct dsi_display *display)
 		sysfs_remove_group(&dev->kobj,
 			&dynamic_dsi_clock_fs_attrs_group);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	sysfs_remove_group(&dev->kobj, &display_fs_attrs_group);
+	if (dsi_is_f9s_laurel()) {
+		sysfs_remove_group(&dev->kobj, &display_fs_attrs_group);
 
-	if (!IS_ERR_OR_NULL(dsi_link))
-		kernfs_remove_by_name(dsi_link->parent, dsi_link->name);
-#endif
+		if (!IS_ERR_OR_NULL(dsi_link))
+			kernfs_remove_by_name(dsi_link->parent, dsi_link->name);
+	}
 
 	return 0;
 
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static void dsi_display_set_fod_ui(struct dsi_display *display, bool status)
 {
 	struct device *dev = &display->pdev->dev;
+
+	if (!dsi_is_f9s_laurel())
+		return;
+
 	atomic_set(&display->fod_ui, status);
 	sysfs_notify(&dev->kobj, NULL, "fod_ui");
 }
-#endif
 
 /**
  * dsi_display_bind - bind dsi device with controlling device
@@ -6456,9 +6457,8 @@ static int dsi_display_bind(struct device *dev,
 			       display->name, rc);
 		goto error_host_deinit;
 	}
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	strlcpy(Lcm_name, display->name, HARDWARE_MAX_ITEM_LONGTH);
-#endif
+	if (dsi_is_f9s_laurel())
+		strlcpy(Lcm_name, display->name, HARDWARE_MAX_ITEM_LONGTH);
 
 	pr_info("Successfully bind display panel '%s'\n", display->name);
 	display->drm_dev = drm;
@@ -6481,10 +6481,8 @@ static int dsi_display_bind(struct device *dev,
 	/* register te irq handler */
 	dsi_display_register_te_irq(display);
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	dsi_display_feature_create_sysfs(display);
 	dsi_display_whitepoint_create_sysfs();
-#endif
 
 	goto error;
 
@@ -6560,10 +6558,8 @@ static void dsi_display_unbind(struct device *dev,
 	}
 
 	atomic_set(&display->clkrate_change_pending, 0);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (uses_kernel_dimming_fast())
+	if (dsi_is_f9s_laurel() && uses_kernel_dimming_fast())
 		atomic_set(&display->fod_ui, false);
-#endif
 	(void)dsi_display_sysfs_deinit(display);
 	(void)dsi_display_debugfs_deinit(display);
 
@@ -6662,9 +6658,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 
 	for (i = 0; i < count; i++) {
 		struct device_node *np;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 		const char *disp_type = NULL;
-#endif
 
 		np = of_parse_phandle(node, disp_list, i);
 		name = of_get_property(np, "label", NULL);
@@ -6672,18 +6666,17 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 			pr_err("display name not defined\n");
 			continue;
 		}
+		if (dsi_is_f9s_laurel()) {
+			disp_type = of_get_property(np, "qcom,display-type", NULL);
+			if (!disp_type) {
+				pr_err("display type not defined for %s\n", name);
+				continue;
+			}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		disp_type = of_get_property(np, "qcom,display-type", NULL);
-		if (!disp_type) {
-			pr_err("display type not defined for %s\n", name);
-			continue;
+			/* primary/secondary display should match with current dsi */
+			if (strcmp(dsi_type, disp_type))
+				continue;
 		}
-
-		/* primary/secondary display should match with current dsi */
-		if (strcmp(dsi_type, disp_type))
-			continue;
-#endif
 
 		if (boot_disp->boot_disp_en) {
 			if (!strcmp(boot_disp->name, name)) {
@@ -6715,13 +6708,11 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 	display->pdev = pdev;
 	display->boot_disp = boot_disp;
 	display->dsi_type = dsi_type;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	display->esd_error_flag_gpio = of_get_named_gpio_flags(
-			pdev->dev.of_node, "qcom,error-flag-gpio", 0, NULL);
-#endif
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	display->is_prim_display = true;
-#endif
+	if (dsi_is_f9s_laurel())
+		display->esd_error_flag_gpio = of_get_named_gpio_flags(
+				pdev->dev.of_node, "qcom,error-flag-gpio", 0, NULL);
+	if (dsi_is_c3j_ginkgo())
+		display->is_prim_display = true;
 
 	dsi_display_parse_cmdline_topology(display, index);
 
@@ -6991,18 +6982,12 @@ static struct dsi_display_ext_bridge *dsi_display_ext_get_bridge(
 {
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	struct list_head *connector_list;
 	struct drm_connector *conn_iter;
 	struct sde_connector *sde_conn;
-#endif
 	struct dsi_display *display;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	int i;
-#else
 	int i, j, k;
 	u32 bridge_num;
-#endif
 
 	if (!bridge || !bridge->encoder) {
 		SDE_ERROR("invalid argument\n");
@@ -7012,30 +6997,31 @@ static struct dsi_display_ext_bridge *dsi_display_ext_get_bridge(
 	priv = bridge->dev->dev_private;
 	sde_kms = to_sde_kms(priv->kms);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	connector_list = &sde_kms->dev->mode_config.connector_list;
+	if (dsi_is_f9s_laurel()) {
+		connector_list = &sde_kms->dev->mode_config.connector_list;
 
-	list_for_each_entry(conn_iter, connector_list, head) {
-		sde_conn = to_sde_connector(conn_iter);
-		if (sde_conn->encoder == bridge->encoder) {
+		list_for_each_entry(conn_iter, connector_list, head) {
+			sde_conn = to_sde_connector(conn_iter);
+			if (sde_conn->encoder != bridge->encoder)
+				continue;
+
 			display = sde_conn->display;
 			display_for_each_ctrl(i, display) {
 				if (display->ext_bridge[i].bridge == bridge)
 					return &display->ext_bridge[i];
 			}
 		}
-	}
-#else
-	for (i = 0; i < sde_kms->dsi_display_count; i++) {
-		display = sde_kms->dsi_displays[i];
-		bridge_num = display->panel->host_config.ext_bridge_num;
-		for (j = 0; j < bridge_num; j++) {
-			k = display->panel->host_config.ext_bridge_map[j];
-			if (display->ext_bridge[k].bridge == bridge)
-				return &display->ext_bridge[k];
+	} else {
+		for (i = 0; i < sde_kms->dsi_display_count; i++) {
+			display = sde_kms->dsi_displays[i];
+			bridge_num = display->panel->host_config.ext_bridge_num;
+			for (j = 0; j < bridge_num; j++) {
+				k = display->panel->host_config.ext_bridge_map[j];
+				if (display->ext_bridge[k].bridge == bridge)
+					return &display->ext_bridge[k];
+			}
 		}
 	}
-#endif
 
 	return NULL;
 }
@@ -7669,9 +7655,8 @@ int dsi_display_get_modes(struct dsi_display *display,
 exit:
 	*out_modes = display->modes;
 	rc = 0;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	primary_display = display;
-#endif
+	if (dsi_is_f9s_laurel())
+		primary_display = display;
 
 error:
 	if (rc)
@@ -7729,15 +7714,13 @@ int dsi_display_get_panel_vfp(void *dsi_display,
 
 	return rc;
 }
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_display_get_dim_layer_alpha(void *dsi_display,
 				    enum msm_dim_layer_type type, u32 *alpha)
 {
 	struct dsi_display *display = dsi_display;
 	int rc = -ENOTSUPP;
 
-	if (!is_device_f9s() || !uses_kernel_dimming_fast())
+	if (!dsi_is_f9s_laurel() || !uses_kernel_dimming_fast())
 		return 0;
 
 	dsi_panel_acquire_panel_lock(display->panel);
@@ -7767,7 +7750,6 @@ int dsi_display_get_dim_layer_alpha(void *dsi_display,
 
 	return rc;
 }
-#endif
 
 int dsi_display_find_mode(struct dsi_display *display,
 		const struct dsi_display_mode *cmp,
@@ -7872,29 +7854,29 @@ int dsi_display_validate_mode_change(struct dsi_display *display,
 		/* dfps and dynamic clock with const fps use case */
 		if (dsi_display_mode_switch_dfps(cur_mode, adj_mode)) {
 			dsi_panel_get_dfps_caps(display->panel, &dfps_caps);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-			if (!dfps_caps.dfps_support) {
-				pr_err("invalid mode dfps not supported\n");
-				rc = -ENOTSUPP;
-				goto error;
-			}
-			pr_debug("Mode switch is seamless variable refresh\n");
-			adj_mode->dsi_mode_flags |= DSI_MODE_FLAG_VRR;
-			SDE_EVT32(cur_mode->timing.refresh_rate,
-				  adj_mode->timing.refresh_rate,
-				  cur_mode->timing.h_front_porch,
-				  adj_mode->timing.h_front_porch);
-#else
-			if (dfps_caps.dfps_support ||
-			    dyn_clk_caps->maintain_const_fps) {
-				pr_debug("mode switch is variable refresh\n");
+			if (dsi_is_f9s_laurel()) {
+				if (!dfps_caps.dfps_support) {
+					pr_err("invalid mode dfps not supported\n");
+					rc = -ENOTSUPP;
+					goto error;
+				}
+				pr_debug("Mode switch is seamless variable refresh\n");
 				adj_mode->dsi_mode_flags |= DSI_MODE_FLAG_VRR;
 				SDE_EVT32(cur_mode->timing.refresh_rate,
-					adj_mode->timing.refresh_rate,
-					cur_mode->timing.h_front_porch,
-					adj_mode->timing.h_front_porch);
+					  adj_mode->timing.refresh_rate,
+					  cur_mode->timing.h_front_porch,
+					  adj_mode->timing.h_front_porch);
+			} else {
+				if (dfps_caps.dfps_support ||
+				    dyn_clk_caps->maintain_const_fps) {
+					pr_debug("mode switch is variable refresh\n");
+					adj_mode->dsi_mode_flags |= DSI_MODE_FLAG_VRR;
+					SDE_EVT32(cur_mode->timing.refresh_rate,
+						adj_mode->timing.refresh_rate,
+						cur_mode->timing.h_front_porch,
+						adj_mode->timing.h_front_porch);
+				}
 			}
-#endif
 		}
 		/* dynamic clk change use case */
 		if (cur_mode->pixel_clk_khz != adj_mode->pixel_clk_khz) {
@@ -7920,12 +7902,12 @@ int dsi_display_validate_mode_change(struct dsi_display *display,
 				SDE_EVT32(cur_mode->pixel_clk_khz,
 						adj_mode->pixel_clk_khz);
 			}
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		pr_debug("dynamic clk change detected\n");
-		adj_mode->dsi_mode_flags |= DSI_MODE_FLAG_DYN_CLK;
-		SDE_EVT32(cur_mode->pixel_clk_khz,
-				adj_mode->pixel_clk_khz);
-#endif
+			if (dsi_is_f9s_laurel()) {
+				pr_debug("dynamic clk change detected\n");
+				adj_mode->dsi_mode_flags |= DSI_MODE_FLAG_DYN_CLK;
+				SDE_EVT32(cur_mode->pixel_clk_khz,
+						adj_mode->pixel_clk_khz);
+			}
 		}
 	}
 
@@ -8408,9 +8390,8 @@ int dsi_display_prepare(struct dsi_display *display)
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	whitep_display = display;
-#endif
+	if (dsi_is_c3j_ginkgo())
+		whitep_display = display;
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 	mutex_lock(&display->display_lock);
 
@@ -8709,24 +8690,24 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		struct dsi_display *display,
 		struct msm_display_kickoff_params *params)
 {
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	enum msm_dim_layer_type type = params->dim_layer_type;
 	enum msm_dim_layer_type prev_type;
-#endif
 	int rc = 0;
 	int i;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	/* pass current dimming layer type to panel */
-	prev_type = dsi_panel_update_dimlayer(display->panel, type);
+	if (dsi_is_f9s_laurel()) {
+		/* pass current dimming layer type to panel */
+		prev_type = dsi_panel_update_dimlayer(display->panel, type);
 
-	/* notify userspace if we are switching from or to FOD dimming
-	 * layer type
-	 */
-	if ((type == MSM_DIM_LAYER_FOD || prev_type == MSM_DIM_LAYER_FOD) &&
-	    (type != prev_type))
-		dsi_display_set_fod_ui(display, type == MSM_DIM_LAYER_FOD);
-#endif
+		/* notify userspace if we are switching from or to FOD dimming
+		 * layer type
+		 */
+		if ((type == MSM_DIM_LAYER_FOD ||
+		     prev_type == MSM_DIM_LAYER_FOD) &&
+		    (type != prev_type))
+			dsi_display_set_fod_ui(display,
+					      type == MSM_DIM_LAYER_FOD);
+	}
 
 	/* check and setup MISR */
 	if (display->misr_enable)

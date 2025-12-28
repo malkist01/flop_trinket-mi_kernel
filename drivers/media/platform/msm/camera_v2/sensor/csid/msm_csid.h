@@ -22,11 +22,8 @@
 #include "msm_sd.h"
 #include "cam_soc_api.h"
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-#define CSID_SOF_DEBUG_COUNT                      5
-#else
-#define CSID_SOF_DEBUG_COUNT                      3
-#endif
+#define CSID_SOF_DEBUG_COUNT_LAUREL	5
+#define CSID_SOF_DEBUG_COUNT_DEFAULT	3
 
 enum csiphy_lane_assign {
 	PHY_LANE_D0,

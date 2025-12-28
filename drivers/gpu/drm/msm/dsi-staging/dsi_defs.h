@@ -291,7 +291,6 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_PRE_OFF,
 	DSI_CMD_SET_OFF,
 	DSI_CMD_SET_POST_OFF,
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	DSI_CMD_SET_CABC_ON,
 	DSI_CMD_SET_CABC_OFF,
 	DSI_CMD_SET_CABC_MOVIE_ON,
@@ -300,7 +299,6 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_HBM2_ON,
 	DSI_CMD_SET_HBM3_ON,
 	DSI_CMD_SET_HBM_OFF,
-#endif
 	DSI_CMD_SET_PRE_RES_SWITCH,
 	DSI_CMD_SET_RES_SWITCH,
 	DSI_CMD_SET_POST_RES_SWITCH,
@@ -318,7 +316,6 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_POST_TIMING_SWITCH,
 	DSI_CMD_SET_QSYNC_ON,
 	DSI_CMD_SET_QSYNC_OFF,
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	DSI_CMD_SET_ACL_ON,
 	DSI_CMD_SET_ACL_OFF,
 	DSI_CMD_SET_R692A9_PAGE_R60,
@@ -335,7 +332,6 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_DISP_HBM_FOD_OFF,
 	DSI_CMD_SET_DOZE_HBM,
 	DSI_CMD_SET_DOZE_LBM,
-#endif
 	DSI_CMD_SET_MAX
 };
 
@@ -532,9 +528,7 @@ struct dsi_host_common_cfg {
 	bool append_tx_eot;
 	u32 ext_bridge_num;
 	u32 ext_bridge_map[MAX_DSI_CTRLS_PER_DISPLAY];
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	bool ext_bridge_mode;
-#endif
 	bool force_hs_clk_lane;
 	enum dsi_phy_type phy_type;
 	struct dsi_split_link_config split_link;

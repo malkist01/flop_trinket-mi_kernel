@@ -12,6 +12,7 @@
 #include <linux/jiffies.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
+#include <linux/mi_detect.h>
 #include <dsp/msm_audio_ion.h>
 #include <dsp/apr_audio-v2.h>
 #include <dsp/audio_cal_utils.h>
@@ -437,11 +438,10 @@ static int32_t sp_make_afe_callback(uint32_t opcode, uint32_t *payload,
 		data_dest = (u32*) this_afe.dsm_payload;
 		break;
 	case AFE_PARAM_ID_CALIB:
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		expected_size = 76;
-#else
-		expected_size += sizeof(uint32_t) * 14;
-#endif
+		if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+			expected_size = 76;
+		else
+			expected_size += sizeof(uint32_t) * 14;
 		data_dest = (u32*) this_afe.dsm_payload;
 		break;
 #endif

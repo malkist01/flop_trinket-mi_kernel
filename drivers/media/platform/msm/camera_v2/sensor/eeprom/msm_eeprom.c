@@ -15,6 +15,7 @@
 #include <linux/of_gpio.h>
 #include <linux/delay.h>
 #include <linux/crc32.h>
+#include <linux/mi_detect.h>
 #include "msm_sd.h"
 #include "msm_cci.h"
 #include "msm_eeprom.h"
@@ -1695,10 +1696,15 @@ static long msm_eeprom_subdev_fops_ioctl32(struct file *file, unsigned int cmd,
 
 #endif
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int main_module_id = -1;
 int sub_module_id = -1;
 int aux_8m_module_id = -1;
+
+static inline bool msm_is_laurel_f9s(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
+}
+
 static void fill_module_id(struct msm_eeprom_ctrl_t *e_ctrl, int cell_index)
 {
 	uint16_t rc = 0, addr = 0, complete = 0;
@@ -1744,7 +1750,6 @@ static void fill_module_id(struct msm_eeprom_ctrl_t *e_ctrl, int cell_index)
 
 	return;
 }
-#endif
 
 static int msm_eeprom_platform_probe(struct platform_device *pdev)
 {
@@ -1902,8 +1907,7 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 	} else
 		e_ctrl->is_supported = 1;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (e_ctrl->userspace_probe == 1) {
+	if (msm_is_laurel_f9s() && e_ctrl->userspace_probe == 1) {
 		pr_info("%s:%d pdev->id=%d", __func__, __LINE__, pdev->id);
 		rc = msm_camera_power_up(power_info, e_ctrl->eeprom_device_type,
 			&e_ctrl->i2c_client);
@@ -1919,7 +1923,6 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 			goto board_free;
 		}
 	}
-#endif
 
 	v4l2_subdev_init(&e_ctrl->msm_sd.sd,
 		e_ctrl->eeprom_v4l2_subdev_ops);

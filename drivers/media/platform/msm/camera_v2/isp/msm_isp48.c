@@ -15,6 +15,7 @@
 #include <linux/clk.h>
 #include <linux/clk/qcom.h>
 #include <linux/sched/clock.h>
+#include <linux/mi_detect.h>
 
 #include "msm_isp_util.h"
 #include "msm_isp_axi_util.h"
@@ -30,12 +31,14 @@
 #define MSM_VFE48_BUS_CLIENT_INIT 0xABAB
 #define VFE48_STATS_BURST_LEN 3
 #define VFE48_UB_SIZE_VFE 2048 /* 2048 * 256 bits = 64KB */
-#ifdef CONFIG_MACH_XIAOMI_C3J
-#define VFE48_UB_STATS_SIZE 608
-#else
-#define VFE48_UB_STATS_SIZE 352
-#endif
-#define MSM_ISP48_TOTAL_IMAGE_UB_VFE (VFE48_UB_SIZE_VFE - VFE48_UB_STATS_SIZE)
+
+static inline uint32_t msm_vfe48_get_stats_ub_size(void)
+{
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		return 608;
+
+	return 352;
+}
 
 
 static uint32_t stats_base_addr[] = {
@@ -323,23 +326,8 @@ static void msm_vfe48_set_bus_err_ign_mask(struct vfe_device *vfe_dev,
 void msm_vfe48_stats_cfg_ub(struct vfe_device *vfe_dev)
 {
 	int i;
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	uint32_t ub_offset = 0, stats_burst_len = 0;
-#else
-	uint32_t ub_offset = 0, stats_burst_len;
-#endif
 	uint32_t ub_size[VFE47_NUM_STATS_TYPE] = {
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		80, /* MSM_ISP_STATS_HDR_BE */
-		64, /* MSM_ISP_STATS_BG */
-		64, /* MSM_ISP_STATS_BF */
-		64, /* MSM_ISP_STATS_HDR_BHIST */
-		64, /* MSM_ISP_STATS_RS */
-		64, /* MSM_ISP_STATS_CS */
-		64, /* MSM_ISP_STATS_IHIST */
-		64, /* MSM_ISP_STATS_BHIST */
-		80, /* MSM_ISP_STATS_AEC_BG */
-#else
 		64, /* MSM_ISP_STATS_HDR_BE */
 		64, /* MSM_ISP_STATS_BG */
 		32, /* MSM_ISP_STATS_BF */
@@ -349,8 +337,19 @@ void msm_vfe48_stats_cfg_ub(struct vfe_device *vfe_dev)
 		32, /* MSM_ISP_STATS_IHIST */
 		32, /* MSM_ISP_STATS_BHIST */
 		32, /* MSM_ISP_STATS_AEC_BG */
-#endif
 	};
+
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo()) {
+		ub_size[MSM_ISP_STATS_HDR_BE] = 80;
+		ub_size[MSM_ISP_STATS_BG] = 64;
+		ub_size[MSM_ISP_STATS_BF] = 64;
+		ub_size[MSM_ISP_STATS_HDR_BHIST] = 64;
+		ub_size[MSM_ISP_STATS_RS] = 64;
+		ub_size[MSM_ISP_STATS_CS] = 64;
+		ub_size[MSM_ISP_STATS_IHIST] = 64;
+		ub_size[MSM_ISP_STATS_BHIST] = 64;
+		ub_size[MSM_ISP_STATS_AEC_BG] = 80;
+	}
 
 	stats_burst_len = VFE48_STATS_BURST_LEN;
 	ub_offset = VFE48_UB_SIZE_VFE;
@@ -365,7 +364,7 @@ void msm_vfe48_stats_cfg_ub(struct vfe_device *vfe_dev)
 
 uint32_t msm_vfe48_get_ub_size(struct vfe_device *vfe_dev)
 {
-	return MSM_ISP48_TOTAL_IMAGE_UB_VFE;
+	return VFE48_UB_SIZE_VFE - msm_vfe48_get_stats_ub_size();
 }
 
 int msm_vfe48_get_dual_sync_platform_data(struct vfe_device *vfe_dev)

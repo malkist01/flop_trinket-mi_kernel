@@ -203,7 +203,6 @@ unsigned int is_legacy_timestamp(void)
 	return legacy_timestamp_source;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 /* Workaround: no_kernel_dimming */
 static bool no_kernel_dimming = false;
 DEFINE_STATIC_KEY_TRUE(uses_kernel_dimming_key);
@@ -212,6 +211,9 @@ EXPORT_SYMBOL(uses_kernel_dimming_key);
 static int __init set_no_kernel_dimming(char *val)
 {
 	int tmp = no_kernel_dimming;
+
+	if (!IS_ENABLED(CONFIG_MACH_XIAOMI_F9S))
+		return 0;
 
 	if (get_option(&val, &tmp)) {
 		no_kernel_dimming = tmp != 0;
@@ -230,7 +232,6 @@ bool uses_kernel_dimming(void)
 {
 	return !no_kernel_dimming;
 }
-#endif
 
 /* Workaround: dead_modem */
 static bool dead_modem = false;
@@ -709,18 +710,14 @@ static void __init mm_init(void)
 	pti_init();
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 int fpsensor = 1;
 int lct_hardwareid = 0;  /* if board id is 2, it`s new board for imx582 */
-#endif
 
 asmlinkage __visible void __init start_kernel(void)
 {
 	char *command_line;
 	char *after_dashes;
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	char *p = NULL;
-#endif
 
 	set_task_stack_end_magic(&init_task);
 	smp_setup_processor_id();
@@ -750,28 +747,27 @@ asmlinkage __visible void __init start_kernel(void)
 	page_alloc_init();
 
 	pr_notice("Kernel command line: %s\n", boot_command_line);
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J)) {
+		p = NULL;
+		p = strstr(command_line, "androidboot.fpsensor=fpc");
+		if (p) {
+			fpsensor = 1; /* fpc fingerprint */
+			printk("I am fpc fingerprint");
+		} else {
+			fpsensor = 2; /* goodix fingerprint */
+			printk("I am goodix fingerprint");
+		}
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	p = NULL;
-	p = strstr(command_line, "androidboot.fpsensor=fpc");
-	if (p) {
-		fpsensor = 1; /* fpc fingerprint */
-		printk("I am fpc fingerprint");
-	} else {
-		fpsensor = 2; /* goodix fingerprint */
-		printk("I am goodix fingerprint");
+		p = NULL;
+		p = strstr(command_line, "androidboot.hwversion=2");
+		if (p) {
+			lct_hardwareid = 2;
+			printk("I am new board for imx582 camera");
+		} else {
+			lct_hardwareid = 0;
+			printk("I am old board for imx582 camera");
+		}
 	}
-
-	p = NULL;
-	p = strstr(command_line, "androidboot.hwversion=2");
-	if (p) {
-		lct_hardwareid = 2;
-		printk("I am new board for imx582 camera");
-	} else {
-		lct_hardwareid = 0;
-		printk("I am old board for imx582 camera");
-	}
-#endif
 
 	/* parameters may set static keys */
 	jump_label_init();
@@ -796,10 +792,9 @@ asmlinkage __visible void __init start_kernel(void)
 			uname_bpf_spoof ? "enabled" : "disabled");
 	pr_info("Workaround: legacy_ir_hal=%s\n",
 			legacy_ir_hal ? "enabled" : "disabled");
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	pr_info("Workaround: no_kernel_dimming=%s\n",
-			no_kernel_dimming ? "enabled" : "disabled");
-#endif
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S))
+		pr_info("Workaround: no_kernel_dimming=%s\n",
+				no_kernel_dimming ? "enabled" : "disabled");
 	pr_info("Workaround: dead_modem=%s\n",
 			dead_modem ? "enabled" : "disabled");
 

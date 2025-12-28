@@ -10,9 +10,8 @@
  * GNU General Public License for more details.
  */
 #include "msm_sensor.h"
-#ifdef CONFIG_MACH_XIAOMI_C3J
 #include <linux/gpio.h>
-#endif
+#include <linux/mi_detect.h>
 #include "msm_sd.h"
 #include "camera.h"
 #include "msm_cci.h"
@@ -24,9 +23,7 @@
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 extern int lct_hardwareid;
-#endif
 static struct msm_camera_i2c_fn_t msm_sensor_cci_func_tbl;
 static struct msm_camera_i2c_fn_t msm_sensor_secure_func_tbl;
 
@@ -122,7 +119,6 @@ int32_t msm_sensor_free_sensor_data(struct msm_sensor_ctrl_t *s_ctrl)
 	return 0;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static int msm_sensor_match_vendor_id(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
@@ -198,7 +194,6 @@ static int msm_sensor_match_vendor_id(struct msm_sensor_ctrl_t *s_ctrl)
 
 	return rc;
 }
-#endif
 
 int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -233,7 +228,6 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 		sensor_i2c_client);
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static int msm_sensor_get_sensor_id_gc02m1(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
@@ -359,7 +353,6 @@ static int msm_sensor_get_sensor_id_gc02m1(struct msm_sensor_ctrl_t *s_ctrl)
 	}
 	return rc;
 }
-#endif
 
 int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -369,9 +362,8 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
 	uint32_t retry = 0;
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	uint32_t gval;
-#endif
+	uint32_t gval = 0;
+	bool is_ginkgo_c3j = IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
 
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: %pK\n",
@@ -401,11 +393,7 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	CDBG("Sensor %d tagged as %s\n", s_ctrl->id,
 		(s_ctrl->is_secure)?"SECURE":"NON-SECURE");
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	for (retry = 0; retry < 2; retry++) {
-#else
-	for (retry = 0; retry < 3; retry++) {
-#endif
+	for (retry = 0; retry < (is_ginkgo_c3j ? 2 : 3); retry++) {
 		if (s_ctrl->is_secure) {
 			rc = msm_camera_tz_i2c_power_up(sensor_i2c_client);
 			if (rc < 0) {
@@ -427,48 +415,18 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			sensor_i2c_client);
 		if (rc < 0)
 			return rc;
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		gval = gpio_get_value(132); /* get gpio value!!! */
+		if (is_ginkgo_c3j) {
+			gval = gpio_get_value(132); /* get gpio value!!! */
 
-		CDBG("gpio132 value = %d", gval);
-		if ((!strcmp("ginkgo_gc02m1_sunny_ii", sensor_name)) ||
-		    (!strcmp("ginkgo_gc02m1_ofilm_ii", sensor_name)) ||
-		    (!strcmp("ginkgo_gc02m1_ofilm_iii", s_ctrl->sensordata->sensor_name))) {
-			rc = msm_sensor_get_sensor_id_gc02m1(s_ctrl);
-			if (rc < 0) {
-				pr_err("%s:%d litao read sensor %s fusion id failed\n",
-				       __func__, __LINE__,
-				       s_ctrl->sensordata->sensor_name);
-				msm_camera_power_down(power_info,
-					s_ctrl->sensor_device_type,
-					sensor_i2c_client);
-				msleep(20);
-				continue;
-			}
-		}
-
-		if ((strcmp(sensor_name, "ginkgo_ov02a10_sunny_i") == 0) &&
-		    (gval == 1)) {
-			msm_camera_power_down(power_info,
-				s_ctrl->sensor_device_type, sensor_i2c_client);
-			pr_err("%s	probe fail!! ", sensor_name);
-			return -EINVAL;
-		}
-
-		if ((strcmp(sensor_name,"ginkgo_ov02a10_ofilm_ii") == 0) &&
-		    (gval == 0)) {
-			msm_camera_power_down(power_info,
-				s_ctrl->sensor_device_type, sensor_i2c_client);
-			pr_err("%s probe fail!! ", sensor_name);
-			return -EINVAL;
-		}
-
-		if ((strcmp(sensor_name, "ginkgo_gc02m1_sunny_ii") != 0) &&
-		    (strcmp(sensor_name,"ginkgo_gc02m1_ofilm_ii") != 0) &&
-		    (strcmp(sensor_name,"ginkgo_gc02m1_ofilm_iii") != 0)) {
-			if (!s_ctrl->is_probe_succeed) {
-				rc = msm_sensor_match_vendor_id(s_ctrl);
+			CDBG("gpio132 value = %d", gval);
+			if ((!strcmp("ginkgo_gc02m1_sunny_ii", sensor_name)) ||
+			    (!strcmp("ginkgo_gc02m1_ofilm_ii", sensor_name)) ||
+			    (!strcmp("ginkgo_gc02m1_ofilm_iii", s_ctrl->sensordata->sensor_name))) {
+				rc = msm_sensor_get_sensor_id_gc02m1(s_ctrl);
 				if (rc < 0) {
+					pr_err("%s:%d litao read sensor %s fusion id failed\n",
+					       __func__, __LINE__,
+					       s_ctrl->sensordata->sensor_name);
 					msm_camera_power_down(power_info,
 						s_ctrl->sensor_device_type,
 						sensor_i2c_client);
@@ -476,8 +434,38 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 					continue;
 				}
 			}
+
+			if ((strcmp(sensor_name, "ginkgo_ov02a10_sunny_i") == 0) &&
+			    (gval == 1)) {
+				msm_camera_power_down(power_info,
+					s_ctrl->sensor_device_type, sensor_i2c_client);
+				pr_err("%s\tprobe fail!! ", sensor_name);
+				return -EINVAL;
+			}
+
+			if ((strcmp(sensor_name, "ginkgo_ov02a10_ofilm_ii") == 0) &&
+			    (gval == 0)) {
+				msm_camera_power_down(power_info,
+					s_ctrl->sensor_device_type, sensor_i2c_client);
+				pr_err("%s probe fail!! ", sensor_name);
+				return -EINVAL;
+			}
+
+			if ((strcmp(sensor_name, "ginkgo_gc02m1_sunny_ii") != 0) &&
+			    (strcmp(sensor_name, "ginkgo_gc02m1_ofilm_ii") != 0) &&
+			    (strcmp(sensor_name, "ginkgo_gc02m1_ofilm_iii") != 0)) {
+				if (!s_ctrl->is_probe_succeed) {
+					rc = msm_sensor_match_vendor_id(s_ctrl);
+					if (rc < 0) {
+						msm_camera_power_down(power_info,
+							s_ctrl->sensor_device_type,
+							sensor_i2c_client);
+						msleep(20);
+						continue;
+					}
+				}
+			}
 		}
-#endif
 		rc = msm_sensor_check_id(s_ctrl);
 		if (rc < 0) {
 			msm_camera_power_down(power_info,

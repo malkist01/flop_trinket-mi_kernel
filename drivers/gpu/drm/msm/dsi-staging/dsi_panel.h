@@ -119,10 +119,8 @@ struct dsi_backlight_config {
 	u32 bl_scale;
 	u32 bl_scale_ad;
 	bool bl_inverted_dbv;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	u32 bl_doze_lpm;
 	u32 bl_doze_hbm;
-#endif
 
 	int en_gpio;
 	/* PWM params */
@@ -154,9 +152,7 @@ enum esd_check_status_mode {
 	ESD_MODE_REG_READ,
 	ESD_MODE_SW_BTA,
 	ESD_MODE_PANEL_TE,
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	ESD_MODE_PANEL_ERROR_FLAG,
-#endif
 	ESD_MODE_SW_SIM_SUCCESS,
 	ESD_MODE_SW_SIM_FAILURE,
 	ESD_MODE_MAX
@@ -164,9 +160,7 @@ enum esd_check_status_mode {
 
 struct drm_panel_esd_config {
 	bool esd_enabled;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	bool acl_white_enabled;
-#endif
 
 	enum esd_check_status_mode status_mode;
 	struct dsi_panel_cmd_set status_cmd;
@@ -178,7 +172,6 @@ struct drm_panel_esd_config {
 	u32 groups;
 };
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 struct white_point {
 	int point_x;
 	int point_y;
@@ -189,7 +182,6 @@ struct brightness_alpha_pair {
 	u32 brightness;
 	u32 alpha;
 };
-#endif
 
 struct dsi_panel {
 	const char *name;
@@ -227,7 +219,6 @@ struct dsi_panel {
 
 	bool lp11_init;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	bool samsung_flag;
 	bool last_acl_flag;
 
@@ -239,7 +230,6 @@ struct dsi_panel {
 	bool skip_dimming_on;
 
 	struct white_point point_read;
-#endif
 	bool ulps_feature_enabled;
 	bool ulps_suspend_enabled;
 	bool allow_phy_power_off;
@@ -252,23 +242,17 @@ struct dsi_panel {
 	char dsc_pps_cmd[DSI_CMD_PPS_SIZE];
 	enum dsi_dms_mode dms_mode;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	bool doze_status;
-#endif
 	bool hbm_enabled;
 	int hbm_mode;
 	int cabc_mode;
 	bool sync_broadcast_en;
 	int power_mode;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	enum msm_dim_layer_type dimlayer_type;
-#endif
 	enum dsi_panel_physical_type panel_type;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	struct brightness_alpha_pair *fod_dim_lut;
 	u32 fod_dim_lut_count;
-#endif
 };
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)
@@ -347,15 +331,11 @@ int dsi_panel_post_enable(struct dsi_panel *panel);
 
 int dsi_panel_pre_disable(struct dsi_panel *panel);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-int dsi_panel_write_panel_register(struct dsi_panel *panel,int value);
-#endif
+int dsi_panel_write_panel_register(struct dsi_panel *panel, int value);
 
 int dsi_panel_disable(struct dsi_panel *panel);
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 int dsi_panel_set_feature(struct dsi_panel *panel, enum dsi_cmd_set_type type);
-#endif
 
 int dsi_panel_unprepare(struct dsi_panel *panel);
 
@@ -363,13 +343,11 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel);
 
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_panel_set_doze_backlight(struct dsi_panel *panel, u32 bl_lvl);
 
 int dsi_panel_set_dimming_brightness(struct dsi_panel *panel, u8 dimming, u32 brightness);
 
 int dsi_panel_set_brightness(struct dsi_panel *panel, u8 dimming, u32 brightness);
-#endif
 
 int dsi_panel_update_pps(struct dsi_panel *panel);
 
@@ -405,7 +383,6 @@ int dsi_panel_parse_esd_reg_read_configs(struct dsi_panel *panel);
 
 void dsi_panel_ext_bridge_put(struct dsi_panel *panel);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel);
 
 static inline bool dsi_panel_is_hbm_enabled(struct dsi_panel *panel)
@@ -423,6 +400,5 @@ int dsi_panel_set_hbm_enabled(struct dsi_panel *panel, bool status);
 
 enum msm_dim_layer_type dsi_panel_update_dimlayer(struct dsi_panel *panel,
 						  enum msm_dim_layer_type type);
-#endif
 
 #endif /* _DSI_PANEL_H_ */

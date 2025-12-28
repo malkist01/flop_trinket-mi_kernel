@@ -20,6 +20,7 @@
 #include <linux/mutex.h>
 #include <linux/of_device.h>
 #include <linux/slab.h>
+#include <linux/mi_detect.h>
 #include <sound/core.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
@@ -64,6 +65,16 @@ static struct cal_type_data *cal_data[MAX_ROUTING_CAL_TYPES];
 static int fm_switch_enable;
 static int hfp_switch_enable;
 static int a2dp_switch_enable;
+
+static inline bool msm_routing_is_ginkgo_c3j(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+}
+
+static inline bool msm_routing_is_laurel_f9s(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
+}
 
 
 #ifndef CONFIG_MI2S_DISABLE
@@ -3060,6 +3071,31 @@ static int msm_routing_get_port_mixer(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int msm_routing_get_port_mixer_for_beid(struct snd_kcontrol *kcontrol,
+					       struct snd_ctl_elem_value *ucontrol,
+					       int be_id)
+{
+	int idx = 0, shift = 0;
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+
+	idx = mc->rshift / (sizeof(msm_bedais[be_id].port_sessions[0]) * 8);
+	shift = mc->rshift % (sizeof(msm_bedais[be_id].port_sessions[0]) * 8);
+
+	if (idx >= BE_DAI_PORT_SESSIONS_IDX_MAX) {
+		pr_err("%s: Invalid idx = %d\n", __func__, idx);
+		return -EINVAL;
+	}
+
+	if (test_bit(shift,
+		(unsigned long *)&msm_bedais[be_id].port_sessions[idx]))
+		ucontrol->value.integer.value[0] = 1;
+	else
+		ucontrol->value.integer.value[0] = 0;
+
+	return 0;
+}
+
 static int msm_routing_put_port_mixer(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
@@ -3092,6 +3128,67 @@ static int msm_routing_put_port_mixer(struct snd_kcontrol *kcontrol,
 	}
 
 	return 1;
+}
+
+static int msm_routing_put_port_mixer_for_beid(struct snd_kcontrol *kcontrol,
+					       struct snd_ctl_elem_value *ucontrol,
+					       int be_id)
+{
+	int idx = 0, shift = 0;
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+
+	idx = mc->rshift / (sizeof(msm_bedais[be_id].port_sessions[0]) * 8);
+	shift = mc->rshift % (sizeof(msm_bedais[be_id].port_sessions[0]) * 8);
+
+	if (idx >= BE_DAI_PORT_SESSIONS_IDX_MAX) {
+		pr_err("%s: Invalid idx = %d\n", __func__, idx);
+		return -EINVAL;
+	}
+
+	if (ucontrol->value.integer.value[0]) {
+		afe_loopback(1, msm_bedais[be_id].port_id,
+			    msm_bedais[mc->rshift].port_id);
+		set_bit(shift,
+			(unsigned long *)&msm_bedais[be_id].port_sessions[idx]);
+	} else {
+		afe_loopback(0, msm_bedais[be_id].port_id,
+			    msm_bedais[mc->rshift].port_id);
+		clear_bit(shift,
+			(unsigned long *)&msm_bedais[be_id].port_sessions[idx]);
+	}
+
+	return 1;
+}
+
+static int msm_routing_get_port_mixer_tx_cdc_dma_tx_3(struct snd_kcontrol *kcontrol,
+					     struct snd_ctl_elem_value *ucontrol)
+{
+	int be_id;
+
+	if (msm_routing_is_laurel_f9s())
+		be_id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX;
+	else if (msm_routing_is_ginkgo_c3j())
+		be_id = MSM_BACKEND_DAI_PRI_MI2S_RX;
+	else
+		return 0;
+
+	return msm_routing_get_port_mixer_for_beid(kcontrol, ucontrol, be_id);
+}
+
+static int msm_routing_put_port_mixer_tx_cdc_dma_tx_3(struct snd_kcontrol *kcontrol,
+					     struct snd_ctl_elem_value *ucontrol)
+{
+	int be_id;
+
+	if (msm_routing_is_laurel_f9s())
+		be_id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX;
+	else if (msm_routing_is_ginkgo_c3j())
+		be_id = MSM_BACKEND_DAI_PRI_MI2S_RX;
+	else
+		return 0;
+
+	return msm_routing_put_port_mixer_for_beid(kcontrol, ucontrol, be_id);
 }
 
 static int msm_pcm_get_channel_rule_index(struct snd_kcontrol *kcontrol,
@@ -16888,17 +16985,11 @@ static const struct snd_kcontrol_new usb_rx_port_mixer_controls[] = {
 	MSM_BACKEND_DAI_USB_RX,
 	MSM_BACKEND_DAI_USB_TX, 1, 0, msm_routing_get_port_mixer,
 	msm_routing_put_port_mixer),
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	SOC_DOUBLE_EXT("TX_CDC_DMA_TX_3", SND_SOC_NOPM,
-	MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
-	MSM_BACKEND_DAI_TX_CDC_DMA_TX_3, 1, 0, msm_routing_get_port_mixer,
-	msm_routing_put_port_mixer),
-#elif defined (CONFIG_MACH_XIAOMI_C3J)
-	SOC_DOUBLE_EXT("TX_CDC_DMA_TX_3", SND_SOC_NOPM,
-	MSM_BACKEND_DAI_PRI_MI2S_RX,
-	MSM_BACKEND_DAI_TX_CDC_DMA_TX_3, 1, 0, msm_routing_get_port_mixer,
-	msm_routing_put_port_mixer),
-#endif
+	MSM_BACKEND_DAI_USB_RX,
+	MSM_BACKEND_DAI_TX_CDC_DMA_TX_3, 1, 0,
+	msm_routing_get_port_mixer_tx_cdc_dma_tx_3,
+	msm_routing_put_port_mixer_tx_cdc_dma_tx_3),
 };
 
 static const struct snd_kcontrol_new lsm1_mixer_controls[] = {
@@ -21077,9 +21168,6 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 	{"RX_CDC_DMA_RX_0_Voice Mixer", "VoiceMMode1", "VOICEMMODE1_DL"},
 	{"RX_CDC_DMA_RX_0_Voice Mixer", "VoiceMMode2", "VOICEMMODE2_DL"},
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	{"RX_CDC_DMA_RX_0_Voice Mixer", "Voip", "VOIP_DL"},
-#endif
 	{"RX_CDC_DMA_RX_0", NULL, "RX_CDC_DMA_RX_0_Voice Mixer"},
 
 	{"VOC_EXT_EC MUX", "SLIM_1_TX",    "SLIMBUS_1_TX"},
@@ -21293,9 +21381,6 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"RX_CDC_DMA_RX_0 Port Mixer", "TX_CDC_DMA_TX_3", "TX_CDC_DMA_TX_3"},
 	{"WSA_CDC_DMA_RX_0 Port Mixer", "SLIM_8_TX", "SLIMBUS_8_TX"},
 	{"RX_CDC_DMA_RX_0 Port Mixer", "SLIM_8_TX", "SLIMBUS_8_TX"},
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	{"RX_CDC_DMA_RX_0", NULL, "RX_CDC_DMA_RX_0 Port Mixer"},
-#endif
 
 
 	{"SLIMBUS_0_RX Port Mixer", "INTERNAL_FM_TX", "INT_FM_TX"},
@@ -21668,9 +21753,6 @@ static const struct snd_soc_dapm_route intercon_aux_pcm[] = {
 	{"Voip_Tx Mixer", "TERT_AUX_PCM_TX_Voip", "TERT_AUX_PCM_TX"},
 	{"Voip_Tx Mixer", "QUAT_AUX_PCM_TX_Voip", "QUAT_AUX_PCM_TX"},
 	{"Voip_Tx Mixer", "QUIN_AUX_PCM_TX_Voip", "QUIN_AUX_PCM_TX"},
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	{"Voip_Tx Mixer", "TX_CDC_DMA_TX_3_Voip", "TX_CDC_DMA_TX_3"},
-#endif
 
 	{"QCHAT_Tx Mixer", "AUX_PCM_TX_QCHAT", "AUX_PCM_TX"},
 	{"QCHAT_Tx Mixer", "SEC_AUX_PCM_TX_QCHAT", "SEC_AUX_PCM_TX"},
@@ -23546,17 +23628,7 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 	{"INT0_MI2S_RX", NULL, "INT0_MI2S_RX_DL_HL"},
 	{"INT4_MI2S_RX_DL_HL", "Switch", "INT4_MI2S_DL_HL"},
 	{"INT4_MI2S_RX", NULL, "INT4_MI2S_RX_DL_HL"},
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	{"PRI_MI2S_RX_DL_HL", "Switch", "CDC_DMA_DL_HL"},
-#else
-	{"PRI_MI2S_RX_DL_HL", "Switch", "PRI_MI2S_DL_HL"},
-#endif
 	{"PRI_MI2S_RX", NULL, "PRI_MI2S_RX_DL_HL"},
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	{"SEC_MI2S_RX_DL_HL", "Switch", "CDC_DMA_DL_HL"},
-#else
-	{"SEC_MI2S_RX_DL_HL", "Switch", "SEC_MI2S_DL_HL"},
-#endif
 	{"SEC_MI2S_RX", NULL, "SEC_MI2S_RX_DL_HL"},
 	{"TERT_MI2S_RX_DL_HL", "Switch", "TERT_MI2S_DL_HL"},
 	{"TERT_MI2S_RX", NULL, "TERT_MI2S_RX_DL_HL"},
@@ -23664,9 +23736,6 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 #ifndef CONFIG_AUXPCM_DISABLE
 	{"PRI_MI2S_RX Port Mixer", "SEC_AUX_PCM_UL_TX", "SEC_AUX_PCM_TX"},
 #endif
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	{"PRI_MI2S_RX Port Mixer", "TX_CDC_DMA_TX_3", "TX_CDC_DMA_TX_3"},
-#endif
 	{"PRI_MI2S_RX", NULL, "PRI_MI2S_RX Port Mixer"},
 
 	{"SEC_MI2S_RX Port Mixer", "PRI_MI2S_TX", "PRI_MI2S_TX"},
@@ -23679,9 +23748,6 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 	{"SEC_MI2S_RX Port Mixer", "SLIM_8_TX", "SLIMBUS_8_TX"},
 #ifndef CONFIG_AUXPCM_DISABLE
 	{"SEC_MI2S_RX Port Mixer", "AUX_PCM_UL_TX", "AUX_PCM_TX"},
-#endif
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	{"SEC_MI2S_RX Port Mixer", "TX_CDC_DMA_TX_3", "TX_CDC_DMA_TX_3"},
 #endif
 	{"SEC_MI2S_RX", NULL, "SEC_MI2S_RX Port Mixer"},
 
@@ -24547,6 +24613,26 @@ static void snd_soc_dapm_add_routes_tdm(struct snd_soc_component *component)
 
 
 #ifndef CONFIG_MI2S_DISABLE
+static const struct snd_soc_dapm_route msm_routing_c3j_routes[] = {
+	{"RX_CDC_DMA_RX_0_Voice Mixer", "Voip", "VOIP_DL"},
+	{"Voip_Tx Mixer", "TX_CDC_DMA_TX_3_Voip", "TX_CDC_DMA_TX_3"},
+	{"PRI_MI2S_RX_DL_HL", "Switch", "CDC_DMA_DL_HL"},
+	{"SEC_MI2S_RX_DL_HL", "Switch", "SEC_MI2S_DL_HL"},
+	{"PRI_MI2S_RX Port Mixer", "TX_CDC_DMA_TX_3", "TX_CDC_DMA_TX_3"},
+};
+
+static const struct snd_soc_dapm_route msm_routing_f9s_routes[] = {
+	{"RX_CDC_DMA_RX_0", NULL, "RX_CDC_DMA_RX_0 Port Mixer"},
+	{"PRI_MI2S_RX_DL_HL", "Switch", "PRI_MI2S_DL_HL"},
+	{"SEC_MI2S_RX_DL_HL", "Switch", "CDC_DMA_DL_HL"},
+	{"SEC_MI2S_RX Port Mixer", "TX_CDC_DMA_TX_3", "TX_CDC_DMA_TX_3"},
+};
+
+static const struct snd_soc_dapm_route msm_routing_default_routes[] = {
+	{"PRI_MI2S_RX_DL_HL", "Switch", "PRI_MI2S_DL_HL"},
+	{"SEC_MI2S_RX_DL_HL", "Switch", "SEC_MI2S_DL_HL"},
+};
+
 static void snd_soc_dapm_new_controls_mi2s(struct snd_soc_component *component)
 {
         snd_soc_dapm_new_controls(&component->dapm,
@@ -24557,6 +24643,16 @@ static void snd_soc_dapm_add_routes_mi2s(struct snd_soc_component *component)
 {
         snd_soc_dapm_add_routes(&component->dapm, intercon_mi2s,
                 ARRAY_SIZE(intercon_mi2s));
+
+	if (msm_routing_is_ginkgo_c3j())
+		snd_soc_dapm_add_routes(&component->dapm, msm_routing_c3j_routes,
+					ARRAY_SIZE(msm_routing_c3j_routes));
+	else if (msm_routing_is_laurel_f9s())
+		snd_soc_dapm_add_routes(&component->dapm, msm_routing_f9s_routes,
+					ARRAY_SIZE(msm_routing_f9s_routes));
+	else
+		snd_soc_dapm_add_routes(&component->dapm, msm_routing_default_routes,
+					ARRAY_SIZE(msm_routing_default_routes));
 }
 #else
 static void snd_soc_dapm_new_controls_mi2s(struct snd_soc_component *component)

@@ -34,6 +34,7 @@
 #include <linux/qpnp/qpnp-revid.h>
 #include <uapi/linux/qg.h>
 #include <uapi/linux/qg-profile.h>
+#include <linux/mi_detect.h>
 #include "fg-alg.h"
 #include "qg-sdam.h"
 #include "qg-core.h"
@@ -43,9 +44,7 @@
 #include "qg-battery-profile.h"
 #include "qg-defs.h"
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 u8 set_cycle_flag = 0;
-#endif
 
 static int qg_debug_mask;
 module_param_named(
@@ -2083,11 +2082,12 @@ static int qg_psy_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_FG_RESET:
 		qg_reset(chip);
 		break;
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
-		rc = set_cycle_count(chip->counter, pval->intval);
+		if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+			rc = set_cycle_count(chip->counter, pval->intval);
+		else
+			rc = -EINVAL;
 		break;
-#endif
 	case POWER_SUPPLY_PROP_BATT_AGE_LEVEL:
 		rc = qg_setprop_batt_age_level(chip, pval->intval);
 		break;
@@ -2350,26 +2350,25 @@ static int qg_charge_full_update(struct qpnp_qg *chip)
 				chip->msoc, health, chip->charge_full,
 				chip->charge_done);
 	if (chip->charge_done && !chip->charge_full) {
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		if (chip->msoc >= 99 && (health == POWER_SUPPLY_HEALTH_GOOD ||
-		    health == POWER_SUPPLY_HEALTH_WARM ||
-		    health == POWER_SUPPLY_HEALTH_COOL)) {
-#else
-		if (chip->msoc >= 99 && health == POWER_SUPPLY_HEALTH_GOOD) {
-#endif
+		if (chip->msoc >= 99 &&
+		    ((IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+			     ? (health == POWER_SUPPLY_HEALTH_GOOD ||
+				health == POWER_SUPPLY_HEALTH_WARM ||
+				health == POWER_SUPPLY_HEALTH_COOL)
+			     : (health == POWER_SUPPLY_HEALTH_GOOD))) {
 			chip->charge_full = true;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-			chip->msoc = 100;
-			/* update the SOC register */
-			rc = qg_write_monotonic_soc(chip, chip->msoc);
-			if (rc < 0)
-				pr_err("WT Failed to update MSOC register rc=%d\n", rc);
-			chip->sdam_data[SDAM_SOC] = chip->msoc;
-			rc = qg_sdam_write(SDAM_SOC, chip->msoc);
-			if (rc < 0)
-				pr_err("WT Failed to update SDAM with MSOC rc=%d\n", rc);
-			pr_info("WT hold msoc 100%% when charge done\n");
-#endif
+			if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel()) {
+				chip->msoc = 100;
+				/* update the SOC register */
+				rc = qg_write_monotonic_soc(chip, chip->msoc);
+				if (rc < 0)
+					pr_err("WT Failed to update MSOC register rc=%d\n", rc);
+				chip->sdam_data[SDAM_SOC] = chip->msoc;
+				rc = qg_sdam_write(SDAM_SOC, chip->msoc);
+				if (rc < 0)
+					pr_err("WT Failed to update SDAM with MSOC rc=%d\n", rc);
+				pr_info("WT hold msoc 100%% when charge done\n");
+			}
 			qg_dbg(chip, QG_DEBUG_STATUS, "Setting charge_full (0->1) @ msoc=%d\n",
 					chip->msoc);
 		} else if (health != POWER_SUPPLY_HEALTH_GOOD) {
@@ -2959,9 +2958,7 @@ static int get_batt_id_ohm(struct qpnp_qg *chip, u32 *batt_id_ohm)
 	return 0;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 extern const char *BATTERY_DEFAULT;
-#endif
 static int qg_load_battery_profile(struct qpnp_qg *chip)
 {
 	struct device_node *node = chip->dev->of_node;
@@ -3004,13 +3001,11 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 		return rc;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (!profile_node) {
+	if ((IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel()) && !profile_node) {
 		pr_err("Couldn't find profile, default battery profile was set\n");
 		profile_node = of_batterydata_get_best_profile(chip->batt_node,
 				chip->batt_id_ohm / 1000, BATTERY_DEFAULT);
 	}
-#endif
 
 	rc = of_property_read_string(profile_node, "qcom,battery-type",
 				&chip->bp.batt_type_str);

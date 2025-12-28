@@ -20,33 +20,32 @@
 /* A hardware display blank early change occurred */
 #define MSM_DRM_EARLY_EVENT_BLANK		0x02
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-#define DRM_EARLY_EVENT_BLANK   0x01
-#define DRM_EVENT_BLANK         0x02
+/* Legacy aliases used by some vendor drivers */
+#ifndef DRM_EARLY_EVENT_BLANK
+#define DRM_EARLY_EVENT_BLANK		0x01
+#endif
+#ifndef DRM_EVENT_BLANK
+#define DRM_EVENT_BLANK			0x02
 #endif
 
 enum {
 	/* panel: power on */
 	MSM_DRM_BLANK_UNBLANK,
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	MSM_DRM_BLANK_LP1,
 	MSM_DRM_BLANK_LP2,
 	MSM_DRM_BLANK_STANDBY,
 	MSM_DRM_BLANK_SUSPEND,
-#endif
 	/* panel: power off */
 	MSM_DRM_BLANK_POWERDOWN,
 };
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-enum {
-	DRM_BLANK_UNBLANK = 0,
-	DRM_BLANK_LP1,
-	DRM_BLANK_LP2,
-	DRM_BLANK_STANDBY,
-	DRM_BLANK_SUSPEND,
-	DRM_BLANK_POWERDOWN,
-};
+#ifndef DRM_BLANK_UNBLANK
+#define DRM_BLANK_UNBLANK		0
+#define DRM_BLANK_LP1			1
+#define DRM_BLANK_LP2			2
+#define DRM_BLANK_STANDBY		3
+#define DRM_BLANK_SUSPEND		4
+#define DRM_BLANK_POWERDOWN		5
 #endif
 
 enum msm_drm_display_id {
@@ -62,22 +61,17 @@ struct msm_drm_notifier {
 	void *data;
 };
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 struct drm_notify_data {
 	bool is_primary;
 	void *data;
 };
-#endif
 
 int msm_drm_register_client(struct notifier_block *nb);
 int msm_drm_unregister_client(struct notifier_block *nb);
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int msm_drm_notifier_call_chain(unsigned long val, void *v);
-#endif
-#ifdef CONFIG_MACH_XIAOMI_C3J
+void msm_drm_notifier_enable(bool val);
 int drm_register_client(struct notifier_block *nb);
 int drm_unregister_client(struct notifier_block *nb);
 int drm_notifier_call_chain(unsigned long val, void *v);
-#endif
 
 #endif

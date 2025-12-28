@@ -29,10 +29,8 @@
 #include "dsi_phy.h"
 #include "dsi_panel.h"
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #define MAX_DSI_CTRLS_PER_DISPLAY	2
 #define GPIO_READ_MAX_TIMES		3
-#endif
 
 #define DSI_CLIENT_NAME_SIZE		20
 #define MAX_CMDLINE_PARAM_LEN	 512
@@ -207,9 +205,7 @@ struct dsi_display {
 	struct drm_connector *ext_conn;
 
 	const char *name;
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	bool is_prim_display;
-#endif
 	const char *display_type;
 	const char *dsi_type;
 	struct list_head list;
@@ -248,9 +244,7 @@ struct dsi_display {
 	struct dsi_lane_map lane_map;
 	int cmdline_topology;
 	int cmdline_timing;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	int esd_error_flag_gpio;
-#endif
 	bool is_tpg_enabled;
 	bool poms_pending;
 	bool ulps_enabled;
@@ -292,9 +286,7 @@ struct dsi_display {
 	struct dsi_display_boot_param *boot_disp;
 
 	u32 te_source;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	atomic_t fod_ui;
-#endif
 };
 
 int dsi_display_dev_probe(struct platform_device *pdev);
@@ -628,10 +620,8 @@ void dsi_display_enable_event(struct drm_connector *connector,
 int dsi_display_set_backlight(struct drm_connector *connector,
 		void *display, u32 bl_lvl);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_display_set_panel(struct drm_connector *connector,
 		void *display, int value);
-#endif
 
 /**
  * dsi_display_check_status() - check if panel is dead or alive
@@ -642,10 +632,8 @@ int dsi_display_set_panel(struct drm_connector *connector,
 int dsi_display_check_status(struct drm_connector *connector, void *display,
 				bool te_check_override);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int dsi_display_check_white_status(struct drm_connector *connector, void *display,
 				bool te_check_override);
-#endif
 
 /**
  * dsi_display_cmd_transfer() - transfer command to the panel
@@ -735,7 +723,7 @@ int dsi_display_cont_splash_config(void *display);
  */
 int dsi_display_get_panel_vfp(void *display,
 	int h_active, int v_active);
-#ifdef CONFIG_MACH_XIAOMI_F9S
+
 int dsi_lowpower_register_client(struct notifier_block *nb);
 
 int dsi_display_param_store(struct dsi_display *display, uint32_t param);
@@ -751,7 +739,5 @@ int dsi_display_param_store(struct dsi_display *display, uint32_t param);
  */
 int dsi_display_get_dim_layer_alpha(void *display, enum msm_dim_layer_type type,
 				    u32 *alpha);
-
-#endif
 
 #endif /* _DSI_DISPLAY_H_ */

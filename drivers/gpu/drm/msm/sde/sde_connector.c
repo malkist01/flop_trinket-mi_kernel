@@ -19,19 +19,16 @@
 #include "sde_encoder.h"
 #include <linux/backlight.h>
 #include <linux/string.h>
+#include <linux/mi_detect.h>
 #include "dsi_drm.h"
 #include "dsi_display.h"
 #include "sde_crtc.h"
 #include "sde_rm.h"
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 extern char *saved_command_line;
-#endif
 
 #define BL_NODE_NAME_SIZE 32
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #define LIMIT_PANEL_ERROR_MAX_TIMES 15
-#endif
 
 /* Autorefresh will occur after FRAME_CNT frames. Large values are unlikely */
 #define AUTOREFRESH_MAX_FRAME_CNT 6
@@ -42,9 +39,7 @@ extern char *saved_command_line;
 #define SDE_ERROR_CONN(c, fmt, ...) SDE_ERROR("conn%d " fmt,\
 		(c) ? (c)->base.base.id : -1, ##__VA_ARGS__)
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #define PANEL_BRIGHTNESS_MAX_LEVEL 1023
-#endif
 
 static const struct drm_prop_enum_list e_topology_name[] = {
 	{SDE_RM_TOPOLOGY_NONE,	"sde_none"},
@@ -93,16 +88,17 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 
 	c_conn = bl_get_data(bd);
 	display = (struct dsi_display *) c_conn->display;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (brightness > PANEL_BRIGHTNESS_MAX_LEVEL)
-		brightness = PANEL_BRIGHTNESS_MAX_LEVEL;
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel()) {
+		if (brightness > PANEL_BRIGHTNESS_MAX_LEVEL)
+			brightness = PANEL_BRIGHTNESS_MAX_LEVEL;
 
-	if (brightness && brightness < display->panel->bl_config.bl_min_level)
-		brightness = display->panel->bl_config.bl_min_level;
-#else
-	if (brightness > display->panel->bl_config.bl_max_level)
-		brightness = display->panel->bl_config.bl_max_level;
-#endif
+		if (brightness &&
+				brightness < display->panel->bl_config.bl_min_level)
+			brightness = display->panel->bl_config.bl_min_level;
+	} else {
+		if (brightness > display->panel->bl_config.bl_max_level)
+			brightness = display->panel->bl_config.bl_max_level;
+	}
 
 	/* map UI brightness into driver backlight level with rounding */
 	bl_lvl = mult_frac(brightness, display->panel->bl_config.bl_max_level,
@@ -607,9 +603,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	struct sde_connector *c_conn;
 	struct sde_connector_state *c_state;
 	struct msm_display_kickoff_params params;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	struct sde_crtc_state *crtc_state;
-#endif
+	struct sde_crtc_state *crtc_state = NULL;
 	int rc;
 
 	if (!connector) {
@@ -619,9 +613,9 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 
 	c_conn = to_sde_connector(connector);
 	c_state = to_sde_connector_state(connector->state);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	crtc_state = to_sde_crtc_state(c_conn->encoder->crtc->state);
-#endif
+	if (c_conn->encoder && c_conn->encoder->crtc &&
+			c_conn->encoder->crtc->state)
+		crtc_state = to_sde_crtc_state(c_conn->encoder->crtc->state);
 	if (!c_conn->display) {
 		SDE_ERROR("invalid connector display\n");
 		return -EINVAL;
@@ -636,11 +630,13 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	if (!c_conn->ops.pre_kickoff)
 		return 0;
 
+	memset(&params, 0, sizeof(params));
+
 	params.rois = &c_state->rois;
 	params.hdr_meta = &c_state->hdr_meta;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	params.dim_layer_type = crtc_state->global_dim_layer_type;
-#endif
+	params.dim_layer_type = MSM_DIM_LAYER_NONE;
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel() && crtc_state)
+		params.dim_layer_type = crtc_state->global_dim_layer_type;
 
 	SDE_EVT32_VERBOSE(connector->base.id);
 
@@ -1172,20 +1168,19 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 	idx = msm_property_index(&c_conn->property_info, property);
 	switch (idx) {
 	case CONNECTOR_PROP_LP:
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		if (connector->dev)
-			connector->dev->sde_power_mode = val;
-		break;
-#endif
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		if ((strnstr(saved_command_line, "tianma", strlen(saved_command_line)) != NULL) ||
-		    (strnstr(saved_command_line, "shenchao", strlen(saved_command_line)) != NULL)) {
-			if (connector->dev)
-				connector->dev->doze_state = val;
-			break;
+		if (connector->dev) {
+			if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel()) {
+				connector->dev->sde_power_mode = val;
+			} else if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) &&
+					mi_is_ginkgo()) {
+				if (strnstr(saved_command_line, "tianma",
+							strlen(saved_command_line)) ||
+						strnstr(saved_command_line, "shenchao",
+							strlen(saved_command_line)))
+					connector->dev->doze_state = val;
+			}
 		}
 		break;
-#endif
 	case CONNECTOR_PROP_OUT_FB:
 		/* clear old fb, if present */
 		if (c_state->out_fb)
@@ -1527,7 +1522,6 @@ int sde_connector_get_panel_vfp(struct drm_connector *connector,
 	return vfp;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int sde_connector_get_dim_layer_alpha(struct drm_connector *connector,
 				      enum msm_dim_layer_type type, u32 *alpha)
 {
@@ -1539,6 +1533,9 @@ int sde_connector_get_dim_layer_alpha(struct drm_connector *connector,
 		return -EINVAL;
 	}
 
+	if (!IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) || !mi_is_laurel())
+		return -ENOTSUPP;
+
 	c_conn = to_sde_connector(connector);
 	if (!c_conn->ops.get_dim_layer_alpha)
 		return -ENOTSUPP;
@@ -1549,7 +1546,6 @@ int sde_connector_get_dim_layer_alpha(struct drm_connector *connector,
 
 	return rc;
 }
-#endif
 
 static int _sde_debugfs_conn_cmd_tx_open(struct inode *inode, struct file *file)
 {
@@ -1980,9 +1976,7 @@ int sde_connector_esd_status(struct drm_connector *conn)
 static void sde_connector_check_status_work(struct work_struct *work)
 {
 	struct sde_connector *conn;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	static int record_panel_error_times = 0;
-#endif
 	int rc = 0;
 
 	conn = container_of(to_delayed_work(work),
@@ -2016,21 +2010,20 @@ static void sde_connector_check_status_work(struct work_struct *work)
 			msecs_to_jiffies(interval));
 		return;
 	}
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	record_panel_error_times++;
-	if (record_panel_error_times > LIMIT_PANEL_ERROR_MAX_TIMES) {
-		SDE_INFO("panel recovery %d times and cancel check work\n",
-			 record_panel_error_times);
-		record_panel_error_times = 0;
-		cancel_delayed_work(&conn->status_work);
-		conn->esd_status_check = false;
-		return;
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel()) {
+		record_panel_error_times++;
+		if (record_panel_error_times > LIMIT_PANEL_ERROR_MAX_TIMES) {
+			SDE_INFO("panel recovery %d times and cancel check work\n",
+				record_panel_error_times);
+			record_panel_error_times = 0;
+			cancel_delayed_work(&conn->status_work);
+			conn->esd_status_check = false;
+			return;
+		}
+		_sde_connector_report_panel_dead(conn, true);
+	} else {
+		_sde_connector_report_panel_dead(conn, false);
 	}
-	_sde_connector_report_panel_dead(conn, true);
-#else
-	_sde_connector_report_panel_dead(conn, false);
-#endif
 }
 
 static const struct drm_connector_helper_funcs sde_connector_helper_ops = {

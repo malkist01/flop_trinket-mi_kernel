@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/utsname.h>
+#include <linux/mi_detect.h>
 #include <soc/qcom/boot_stats.h>
 
 #include <linux/usb/composite.h>
@@ -1814,11 +1815,10 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 					cdev->desc.bcdUSB = cpu_to_le16(0x0320);
 					cdev->desc.bMaxPacketSize0 = 9;
 				} else {
-#ifdef CONFIG_MACH_XIAOMI_C3J
-					cdev->desc.bcdUSB = cpu_to_le16(0x0200);
-#else
-					cdev->desc.bcdUSB = cpu_to_le16(0x0210);
-#endif
+					if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+						cdev->desc.bcdUSB = cpu_to_le16(0x0200);
+					else
+						cdev->desc.bcdUSB = cpu_to_le16(0x0210);
 				}
 			} else {
 				if (gadget->lpm_capable)

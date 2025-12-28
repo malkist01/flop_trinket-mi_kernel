@@ -19,6 +19,17 @@
 #include "dsi_pwr.h"
 #include "dsi_parser.h"
 
+static void dsi_pwr_sleep_ms(u32 sleep_ms)
+{
+	if (!sleep_ms)
+		return;
+
+	if (sleep_ms <= 20)
+		usleep_range(sleep_ms * 1000, sleep_ms * 1000);
+	else
+		msleep(sleep_ms);
+}
+
 /*
  * dsi_pwr_parse_supply_node() - parse power supply node from root device node
  */
@@ -139,12 +150,7 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 		for (i = 0; i < regs->count; i++) {
 			vreg = &regs->vregs[i];
 			if (vreg->pre_on_sleep)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-				usleep_range(vreg->pre_on_sleep,
-					     vreg->pre_on_sleep);
-#else
-				msleep(vreg->pre_on_sleep);
-#endif
+				dsi_pwr_sleep_ms(vreg->pre_on_sleep);
 
 			rc = regulator_set_load(vreg->vreg,
 						vreg->enable_load);
@@ -173,22 +179,12 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 			}
 
 			if (vreg->post_on_sleep)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-				usleep_range(vreg->post_on_sleep,
-					     vreg->post_on_sleep);
-#else
-				msleep(vreg->post_on_sleep);
-#endif
+				dsi_pwr_sleep_ms(vreg->post_on_sleep);
 		}
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
 			if (regs->vregs[i].pre_off_sleep)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-				usleep_range(regs->vregs[i].pre_off_sleep,
-					     regs->vregs[i].pre_off_sleep);
-#else
-				msleep(regs->vregs[i].pre_off_sleep);
-#endif
+				dsi_pwr_sleep_ms(regs->vregs[i].pre_off_sleep);
 
 			if (regs->vregs[i].off_min_voltage)
 				(void)regulator_set_voltage(regs->vregs[i].vreg,
@@ -200,12 +196,7 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 			(void)regulator_disable(regs->vregs[i].vreg);
 
 			if (regs->vregs[i].post_off_sleep)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-				usleep_range(regs->vregs[i].post_off_sleep,
-					     regs->vregs[i].post_off_sleep);
-#else
-				msleep(regs->vregs[i].post_off_sleep);
-#endif
+				dsi_pwr_sleep_ms(regs->vregs[i].post_off_sleep);
 		}
 	}
 
@@ -221,12 +212,7 @@ error_disable_voltage:
 error:
 	for (i--; i >= 0; i--) {
 		if (regs->vregs[i].pre_off_sleep)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-			usleep_range(regs->vregs[i].pre_off_sleep,
-				     regs->vregs[i].pre_off_sleep);
-#else
-			msleep(regs->vregs[i].pre_off_sleep);
-#endif
+			dsi_pwr_sleep_ms(regs->vregs[i].pre_off_sleep);
 
 		(void)regulator_set_load(regs->vregs[i].vreg,
 					 regs->vregs[i].disable_load);
@@ -239,12 +225,7 @@ error:
 		(void)regulator_disable(regs->vregs[i].vreg);
 
 		if (regs->vregs[i].post_off_sleep)
-#ifdef CONFIG_MACH_XIAOMI_F9S
-			usleep_range(regs->vregs[i].post_off_sleep,
-				     regs->vregs[i].post_off_sleep);
-#else
-			msleep(regs->vregs[i].post_off_sleep);
-#endif
+			dsi_pwr_sleep_ms(regs->vregs[i].post_off_sleep);
 	}
 
 	return rc;

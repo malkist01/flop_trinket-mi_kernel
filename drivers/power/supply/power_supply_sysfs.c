@@ -13,6 +13,7 @@
 
 #include <linux/ctype.h>
 #include <linux/device.h>
+#include <linux/mi_detect.h>
 #include <linux/power_supply.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
@@ -101,12 +102,9 @@ static ssize_t power_supply_show_property(struct device *dev,
 	const ptrdiff_t off = attr - power_supply_attrs;
 	union power_supply_propval value;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if ((off == POWER_SUPPLY_PROP_TYPE) &&
-	    (strcmp(psy->desc->name, "usb"))) {
-#else
-	if (off == POWER_SUPPLY_PROP_TYPE) {
-#endif
+	if (off == POWER_SUPPLY_PROP_TYPE &&
+	    !(IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel() &&
+	      !strcmp(psy->desc->name, "usb"))) {
 		value.intval = psy->desc->type;
 	} else {
 		ret = power_supply_get_property(psy, off, &value);
@@ -394,9 +392,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(clear_soh),
 	POWER_SUPPLY_ATTR(force_recharge),
 	POWER_SUPPLY_ATTR(fcc_stepper_enable),
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	POWER_SUPPLY_ATTR(charging_call_state),
-#endif
 	POWER_SUPPLY_ATTR(toggle_stat),
 	POWER_SUPPLY_ATTR(main_fcc_max),
 	POWER_SUPPLY_ATTR(fg_reset),

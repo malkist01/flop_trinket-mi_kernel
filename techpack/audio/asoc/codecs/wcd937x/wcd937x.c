@@ -21,6 +21,7 @@
 #include <linux/component.h>
 #include <linux/regmap.h>
 #include <linux/pm_runtime.h>
+#include <linux/mi_detect.h>
 #include <sound/soc.h>
 #include <sound/tlv.h>
 #include <soc/soundwire.h>
@@ -37,6 +38,11 @@
 #define WCD9370_VARIANT 0
 #define WCD9375_VARIANT 5
 #define WCD937X_VARIANT_ENTRY_SIZE 32
+
+static inline bool wcd937x_is_ginkgo_c3j(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+}
 
 #define NUM_SWRS_DT_PARAMS 5
 
@@ -128,11 +134,10 @@ static int wcd937x_init_reg(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, WCD937X_ANA_BIAS, 0x40, 0x40);
 	usleep_range(10000, 10010);
 	snd_soc_update_bits(codec, WCD937X_ANA_BIAS, 0x40, 0x00);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	snd_soc_update_bits(codec, WCD937X_HPH_OCP_CTL, 0xFF, 0x7A);
-#else
-	snd_soc_update_bits(codec, WCD937X_HPH_OCP_CTL, 0xFF, 0x3A);
-#endif
+	if (wcd937x_is_ginkgo_c3j())
+		snd_soc_update_bits(codec, WCD937X_HPH_OCP_CTL, 0xFF, 0x7A);
+	else
+		snd_soc_update_bits(codec, WCD937X_HPH_OCP_CTL, 0xFF, 0x3A);
 	snd_soc_update_bits(codec, WCD937X_RX_OCP_CTL, 0x0F, 0x02);
 	snd_soc_update_bits(codec, WCD937X_HPH_SURGE_HPHLR_SURGE_EN, 0xFF,
 			    0xD9);
@@ -1514,9 +1519,8 @@ static int __wcd937x_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		wcd937x_micbias_control(codec, micb_num, MICB_ENABLE, true);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		usleep_range(10000, 11000); //add 10ms delay
-#endif
+		if (wcd937x_is_ginkgo_c3j())
+			usleep_range(10000, 11000); //add 10ms delay
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		usleep_range(1000, 1100);

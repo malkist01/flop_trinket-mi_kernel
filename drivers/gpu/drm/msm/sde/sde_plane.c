@@ -20,6 +20,7 @@
 
 #include <linux/debugfs.h>
 #include <linux/dma-buf.h>
+#include <linux/workarounds.h>
 #include <uapi/drm/sde_drm.h>
 #include <uapi/drm/msm_drm_pp.h>
 
@@ -3977,9 +3978,7 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 		case PLANE_PROP_ALPHA:
 		case PLANE_PROP_INPUT_FENCE:
 		case PLANE_PROP_BLEND_OP:
-#ifdef CONFIG_MACH_XIAOMI_F9S
 		case PLANE_PROP_FOD:
-#endif
 			/* no special action required */
 			break;
 		case PLANE_PROP_FB_TRANSLATION_MODE:
@@ -4309,7 +4308,6 @@ static void _sde_plane_atomic_disable(struct drm_plane *plane,
 				SDE_SSPP_RECT_SOLO, SDE_SSPP_MULTIRECT_NONE);
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 int sde_plane_is_fod_layer(const struct drm_plane_state *drm_state)
 {
 	struct sde_plane_state *pstate;
@@ -4317,11 +4315,13 @@ int sde_plane_is_fod_layer(const struct drm_plane_state *drm_state)
 	if (!drm_state)
 		return 0;
 
+	if (!is_device_f9s())
+		return 0;
+
 	pstate = to_sde_plane_state(drm_state);
 
 	return sde_plane_get_property(pstate, PLANE_PROP_FOD);
 }
-#endif
 
 static void sde_plane_atomic_update(struct drm_plane *plane,
 				struct drm_plane_state *old_state)
@@ -4407,10 +4407,8 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 	const struct sde_format_extended *format_list;
 	struct sde_kms_info *info;
 	struct sde_plane *psde = to_sde_plane(plane);
-// #ifndef CONFIG_MACH_XIAOMI_F9S
 	int zpos_max = 255;
 	int zpos_def = 0;
-// #endif
 	char feature_name[256];
 
 	if (!plane || !psde) {
@@ -4427,7 +4425,6 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 
 	psde->catalog = catalog;
 
-// #ifndef CONFIG_MACH_XIAOMI_F9S
 	if (is_device_c3j() || (is_device_f9s() && !uses_kernel_dimming_fast())) {
 		if (sde_is_custom_client()) {
 			if (catalog->mixer_count &&
@@ -4447,17 +4444,12 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 
 		msm_property_install_range(&psde->property_info, "zpos",
 			0x0, 0, zpos_max, zpos_def, PLANE_PROP_ZPOS);
-// #else
-	}
-#ifdef CONFIG_MACH_XIAOMI_F9S
-    else {
+	} else {
 		msm_property_install_range(&psde->property_info, "zpos",
 			0x0, 0, INT_MAX, 0, PLANE_PROP_ZPOS);
 		msm_property_install_range(&psde->property_info, "fod",
 			0x0, 0, INT_MAX, 0, PLANE_PROP_FOD);
 	}
-#endif
-// #endif
 
 	msm_property_install_range(&psde->property_info, "alpha",
 		0x0, 0, 255, 255, PLANE_PROP_ALPHA);
@@ -4896,10 +4888,8 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 {
 	struct sde_plane *psde = plane ? to_sde_plane(plane) : NULL;
 	struct sde_plane_state *pstate;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	struct drm_property *fod_property;
 	uint64_t fod_val = 0;
-#endif
 	int idx, ret = -EINVAL;
 
 	SDE_DEBUG_PLANE(psde, "\n");
@@ -4910,18 +4900,17 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 		SDE_ERROR_PLANE(psde, "invalid state\n");
 	} else {
 		pstate = to_sde_plane_state(state);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		if (uses_kernel_dimming_fast()) {
-			idx = msm_property_index(&psde->property_info,
-					property);
-			if (idx == PLANE_PROP_ZPOS) {
-				if (val & FOD_PRESSED_LAYER_ZORDER) {
-					val &= ~FOD_PRESSED_LAYER_ZORDER;
-					fod_val = 1;
-				}
+		idx = msm_property_index(&psde->property_info, property);
+		if (is_device_f9s() && uses_kernel_dimming_fast() &&
+				idx == PLANE_PROP_ZPOS) {
+			if (val & FOD_PRESSED_LAYER_ZORDER) {
+				val &= ~FOD_PRESSED_LAYER_ZORDER;
+				fod_val = 1;
+			}
 
-				fod_property = psde->property_info.
-						property_array[PLANE_PROP_FOD];
+			fod_property = psde->property_info.
+					property_array[PLANE_PROP_FOD];
+			if (fod_property) {
 				ret = msm_property_atomic_set(&psde->property_info,
 						&pstate->property_state,
 						fod_property, fod_val);
@@ -4929,16 +4918,10 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 					SDE_ERROR("failed to set fod prop");
 			}
 		}
-#endif
 		ret = msm_property_atomic_set(&psde->property_info,
 				&pstate->property_state, property, val);
 		if (!ret) {
-// #ifndef CONFIG_MACH_XIAOMI_F9S
-			if (is_device_c3j() || (is_device_f9s() && !uses_kernel_dimming_fast())) {
-				idx = msm_property_index(&psde->property_info,
-						property);
-			}
-// #endif
+			idx = msm_property_index(&psde->property_info, property);
 			switch (idx) {
 			case PLANE_PROP_INPUT_FENCE:
 				_sde_plane_set_input_fence(psde, pstate, val);

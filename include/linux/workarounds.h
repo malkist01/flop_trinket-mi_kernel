@@ -3,6 +3,7 @@
 #define _XIMI_WORKAROUNDS_H
 
 #include <linux/jump_label.h>
+#include <linux/mi_detect.h>
 
 bool is_legacy_timestamp(void);
 bool is_bpf_spoof_enabled(void);
@@ -18,35 +19,22 @@ static inline bool is_legacy_timestamp_fast(void)
 	return static_branch_unlikely(&legacy_timestamp_key);
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 bool uses_kernel_dimming(void);
 extern struct static_key_true uses_kernel_dimming_key;
 static inline bool uses_kernel_dimming_fast(void)
 {
 	return static_branch_likely(&uses_kernel_dimming_key);
 }
-#else
-static inline bool uses_kernel_dimming(void) { return false; }
-static inline bool uses_kernel_dimming_fast(void) { return false; }
-#endif
 
 // Devices
 static inline bool is_device_c3j(void)
 {
-#ifdef CONFIG_MACH_XIAOMI_C3J
-    return true;
-#else
-    return false;
-#endif
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
 }
 
 static inline bool is_device_f9s(void)
 {
-#ifdef CONFIG_MACH_XIAOMI_F9S
-    return true;
-#else
-    return false;
-#endif
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
 }
 
 #endif /* _XIMI_WORKAROUNDS_H */

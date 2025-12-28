@@ -14,6 +14,7 @@
 
 #include <linux/err.h>
 #include <linux/kernel.h>
+#include <linux/mi_detect.h>
 #include <linux/mutex.h>
 #include <linux/power_supply.h>
 #include <linux/slab.h>
@@ -213,9 +214,7 @@ static int get_bucket_cycle_count(struct cycle_counter *counter)
 	return count;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static int cycle_count_a = 0;
-#endif
 
 /**
  * get_cycle_count -
@@ -243,26 +242,20 @@ int get_cycle_count(struct cycle_counter *counter, int *count)
 	 * Normalize the counter across each bucket so that we can get
 	 * the overall charge cycle count.
 	 */
-
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	if (!cycle_count_a)
-		*count = temp / BUCKET_COUNT;
-	else
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo() && cycle_count_a)
 		*count = cycle_count_a;
-#else
-	*count = temp / BUCKET_COUNT;
-#endif
+	else
+		*count = temp / BUCKET_COUNT;
 	return 0;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 int set_cycle_count(struct cycle_counter *counter, int count)
 {
-	cycle_count_a = count;
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo())
+		cycle_count_a = count;
 
 	return 0;
 }
-#endif
 
 /**
  * get_cycle_counts -

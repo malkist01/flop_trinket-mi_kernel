@@ -38,6 +38,7 @@
 #include <linux/pci.h>
 #include <linux/export.h>
 #include <linux/nospec.h>
+#include <linux/mi_detect.h>
 
 /**
  * DOC: getunique and setversion story
@@ -493,7 +494,6 @@ int drm_version(struct drm_device *dev, void *data,
 	return err;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 #define MAX_TASK_NAME_LEN 30
 #define MAX_LIST_NUM 6
 char support_list[MAX_LIST_NUM][MAX_TASK_NAME_LEN] = {
@@ -518,7 +518,6 @@ static bool drm_master_filter(char *task_name)
 	}
 	return ret;
 }
-#endif
 
 /**
  * drm_ioctl_permit - Check ioctl permissions against caller
@@ -534,9 +533,7 @@ static bool drm_master_filter(char *task_name)
  */
 int drm_ioctl_permit(u32 flags, struct drm_file *file_priv)
 {
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	struct task_struct *task = get_current();
-#endif
 	/* ROOT_ONLY is only for CAP_SYS_ADMIN */
 	if (unlikely((flags & DRM_ROOT_ONLY) && !capable(CAP_SYS_ADMIN)))
 		return -EACCES;
@@ -547,20 +544,16 @@ int drm_ioctl_permit(u32 flags, struct drm_file *file_priv)
 		return -EACCES;
 
 	/* MASTER is only for master or control clients */
-#ifdef CONFIG_MACH_XIAOMI_C3J
 	if (unlikely((flags & DRM_MASTER) &&
 		     !drm_is_current_master(file_priv) &&
 		     !drm_is_control_client(file_priv))) {
-		if (!drm_master_filter(task->comm)) {
+		if (IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo()) {
+			if (!drm_master_filter(task->comm))
+				return -EACCES;
+		} else {
 			return -EACCES;
 		}
 	}
-#else
-	if (unlikely((flags & DRM_MASTER) && 
-		     !drm_is_current_master(file_priv) &&
-		     !drm_is_control_client(file_priv)))
-		return -EACCES;
-#endif
 
 	/* Control clients must be explicitly allowed */
 	if (unlikely(!(flags & DRM_CONTROL_ALLOW) &&

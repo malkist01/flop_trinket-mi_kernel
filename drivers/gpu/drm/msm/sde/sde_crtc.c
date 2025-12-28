@@ -2191,12 +2191,10 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 			_sde_crtc_setup_dim_layer_cfg(crtc, sde_crtc,
 					mixer, &cstate->dim_layer[i]);
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 		/* Setup global dimming layer if present */
-		if (cstate->global_dim_layer)
+		if (is_device_f9s() && cstate->global_dim_layer)
 			_sde_crtc_setup_dim_layer_cfg(crtc, sde_crtc, mixer,
-						      cstate->global_dim_layer);
-#endif
+					      cstate->global_dim_layer);
 	}
 
 	_sde_crtc_program_lm_output_roi(crtc);
@@ -3188,12 +3186,8 @@ static void _sde_crtc_set_dim_layer_v1(struct drm_crtc *crtc,
 	}
 
 	count = dim_layer_v1.num_layers;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	/* Reserve 1 layer for global dimming */
-	if (count > SDE_MAX_DIM_LAYERS - 1) {
-#else
-	if (count > SDE_MAX_DIM_LAYERS) {
-#endif
+	if (count > (SDE_MAX_DIM_LAYERS - (is_device_f9s() ? 1 : 0))) {
 		SDE_ERROR("invalid number of dim_layers:%d", count);
 		return;
 	}
@@ -5303,7 +5297,6 @@ static int _sde_crtc_check_secure_state(struct drm_crtc *crtc,
 	return 0;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static int _sde_crtc_setup_global_dim_layer(struct sde_crtc_state *cstate,
 					    u32 stage, u32 alpha)
 {
@@ -5312,6 +5305,9 @@ static int _sde_crtc_setup_global_dim_layer(struct sde_crtc_state *cstate,
 	struct sde_hw_dim_layer *dim_layer = NULL;
 	struct sde_kms *kms;
 	u32 layer_stage;
+
+	if (!is_device_f9s())
+		return -ENOTSUPP;
 
 	/* Get KMS object */
 	kms = _sde_crtc_get_kms(crtc_state->crtc);
@@ -5371,6 +5367,9 @@ static int sde_crtc_global_dim_atomic_check(struct sde_crtc_state *cstate,
 
 	cstate->global_dim_layer = NULL;
 	cstate->global_dim_layer_type = MSM_DIM_LAYER_NONE;
+
+	if (!is_device_f9s())
+		return 0;
 
 	/* First look for FOD layer if it is provided by userspace.
 	 * If so use its stage value to inject global dimming layer
@@ -5441,7 +5440,6 @@ static int sde_crtc_global_dim_atomic_check(struct sde_crtc_state *cstate,
 
 	return rc;
 }
-#endif
 
 static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 		struct drm_crtc_state *state)
@@ -5628,13 +5626,10 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 			sde_plane_clear_multirect(pipe_staged[i]);
 		}
 	}
-
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	/* Check for global dimming */
 	rc = sde_crtc_global_dim_atomic_check(cstate, pstates, cnt);
 	if (rc)
 		goto end;
-#endif
 
 	/* assign mixer stages based on sorted zpos property */
 	if (cnt > 0)

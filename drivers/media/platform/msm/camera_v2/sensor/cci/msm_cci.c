@@ -18,6 +18,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/of_platform.h>
+#include <linux/mi_detect.h>
 #include "msm_sd.h"
 #include "msm_cci.h"
 #include "msm_cam_cci_hwreg.h"
@@ -33,13 +34,26 @@
 #define CYCLES_PER_MICRO_SEC_DEFAULT 4915
 #define CCI_MAX_DELAY 1000000
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-#define CCI_TIMEOUT msecs_to_jiffies(1000)
-#elif defined (CONFIG_MACH_XIAOMI_C3J)
-#define CCI_TIMEOUT msecs_to_jiffies(800)
-#else
-#define CCI_TIMEOUT msecs_to_jiffies(500)
-#endif
+static inline bool msm_is_laurel_f9s(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
+}
+
+static inline bool msm_is_ginkgo_c3j(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+}
+
+static inline unsigned long msm_cci_timeout_jiffies(void)
+{
+	if (msm_is_laurel_f9s())
+		return msecs_to_jiffies(1000);
+	if (msm_is_ginkgo_c3j())
+		return msecs_to_jiffies(800);
+	return msecs_to_jiffies(500);
+}
+
+#define CCI_TIMEOUT (msm_cci_timeout_jiffies())
 
 /* TODO move this somewhere else */
 #define MSM_CCI_DRV_NAME "msm_cci"
@@ -1672,16 +1686,15 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	struct msm_camera_cci_ctrl *cci_ctrl)
 {
 	int32_t rc = 0;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	struct cci_device *cci_dev;
-#endif
+	bool need_lock;
 
 	CDBG("%s line %d cmd %d\n", __func__, __LINE__,
 		cci_ctrl->cmd);
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	cci_dev = v4l2_get_subdevdata(sd);
-	mutex_lock(&cci_dev->mutex);
-#endif
+	need_lock = msm_is_laurel_f9s();
+	if (need_lock)
+		mutex_lock(&cci_dev->mutex);
 
 	switch (cci_ctrl->cmd) {
 	case MSM_CCI_INIT:
@@ -1691,10 +1704,8 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 		rc = msm_cci_release(sd);
 		break;
 	case MSM_CCI_I2C_READ:
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		if (cci_dev->cci_state == CCI_STATE_DISABLED)
+		if (need_lock && cci_dev->cci_state == CCI_STATE_DISABLED)
 			break;
-#endif
 		rc = msm_cci_i2c_read_bytes(sd, cci_ctrl);
 		break;
 	case MSM_CCI_I2C_WRITE:
@@ -1702,10 +1713,8 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	case MSM_CCI_I2C_WRITE_SYNC:
 	case MSM_CCI_I2C_WRITE_ASYNC:
 	case MSM_CCI_I2C_WRITE_SYNC_BLOCK:
-#ifdef CONFIG_MACH_XIAOMI_F9S
-		if (cci_dev->cci_state == CCI_STATE_DISABLED)
+		if (need_lock && cci_dev->cci_state == CCI_STATE_DISABLED)
 			break;
-#endif
 		rc = msm_cci_write(sd, cci_ctrl);
 		break;
 	case MSM_CCI_GPIO_WRITE:
@@ -1719,9 +1728,8 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	}
 	CDBG("%s line %d rc %d\n", __func__, __LINE__, rc);
 	cci_ctrl->status = rc;
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	mutex_unlock(&cci_dev->mutex);
-#endif
+	if (need_lock)
+		mutex_unlock(&cci_dev->mutex);
 	return rc;
 }
 
@@ -2118,9 +2126,7 @@ static int msm_cci_probe(struct platform_device *pdev)
 		pr_err("%s: no enough memory\n", __func__);
 		return -ENOMEM;
 	}
-#ifdef  CONFIG_MACH_XIAOMI_F9S
 	mutex_init(&new_cci_dev->mutex);
-#endif
 	v4l2_subdev_init(&new_cci_dev->msm_sd.sd, &msm_cci_subdev_ops);
 	snprintf(new_cci_dev->msm_sd.sd.name,
 			ARRAY_SIZE(new_cci_dev->msm_sd.sd.name), "msm_cci");
@@ -2218,9 +2224,7 @@ cci_invalid_vreg_data:
 cci_release_mem:
 	msm_camera_put_reg_base(pdev, new_cci_dev->base, "cci", true);
 cci_no_resource:
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	mutex_destroy(&new_cci_dev->mutex);
-#endif
 	kfree(new_cci_dev);
 	return rc;
 }

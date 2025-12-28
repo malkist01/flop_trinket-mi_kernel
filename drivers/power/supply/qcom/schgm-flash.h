@@ -14,6 +14,8 @@
 #define __SCHGM_FLASH_H__
 
 #include <linux/bitops.h>
+#include <linux/interrupt.h>
+#include <linux/types.h>
 
 #define SCHGM_FLASH_BASE			0xA600
 
@@ -49,6 +51,8 @@ enum torch_mode {
 	TORCH_BUCK_MODE = 0,
 	TORCH_BOOST_MODE,
 };
+
+struct smb_charger;
 
 int schgm_flash_get_vreg_ok(struct smb_charger *chg, int *val);
 void schgm_flash_torch_priority(struct smb_charger *chg, enum torch_mode mode);

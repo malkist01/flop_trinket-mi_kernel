@@ -14,6 +14,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/cdev.h>
+#include <linux/mi_detect.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
@@ -100,7 +101,12 @@ int max98927_reg_common_map[][2] = {
 };
 
 /* Quinn Manley <Quinn.Manley@maximintegrated.com> configuration */
-int max98937_reg_common_map[][2] = {
+static inline bool max98937_is_ginkgo_c3j(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+}
+
+static const int max98937_reg_common_map_default[][2] = {
     {MAX98937_Clock_monitor_enable, 0x03},
 	{MAX98937_Brownout_level_infinite_hold,  0x00},
 	{MAX98937_Brownout_level_hold,  0x00},
@@ -135,20 +141,12 @@ int max98937_reg_common_map[][2] = {
 	{MAX98937_PCM_Rx_Enables_B, 0x00},
 	{MAX98937_PCM_Tx_DOUT_Control_2, 0x03},
 	{MAX98937_PCM_Tx_HiZ_Control_B, 0xFF},
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	{MAX98937_Measurement_enables, 0x03},
-#else
 	{MAX98937_Measurement_enables, 0x00},
-#endif
 	{MAX98937_PDM_Rx_Enable,  0x00},
 	{MAX98937_AMP_volume_control,  0x38},
 	{MAX98937_AMP_DSP_Config,  0x0f},
 	{MAX98937_Speaker_Gain,  0x55},
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	{MAX98937_SSM_Configuration,  0xA0},
-#else
 	{MAX98937_SSM_Configuration,  0x85},
-#endif
 	{MAX98937_Boost_Control_0, 0x1c},
 	{MAX98937_Boost_Control_1, 0x40},
 	{MAX98937_Meas_ADC_Base_Divide_MSByte, 0x00},
@@ -164,9 +162,65 @@ int max98937_reg_common_map[][2] = {
 	{MAX98937_Boost_Bypass_1, 0x45},
 	{MAX98937_Boost_Bypass_2, 0x2B},
 	{MAX98937_Boost_Bypass_3, 0x04},
-#ifndef CONFIG_MACH_XIAOMI_C3J
 	{MAX98937_AMP_enables, 0x80},
-#endif
+};
+
+static const int max98937_reg_common_map_ginkgo[][2] = {
+    {MAX98937_Clock_monitor_enable, 0x03},
+	{MAX98937_Brownout_level_infinite_hold,  0x00},
+	{MAX98937_Brownout_level_hold,  0x00},
+	{MAX98937_Brownout__level_1_current_limit,  0x16},
+	{MAX98937_Brownout__level_1_amp_1_control_1,  0x00},
+	{MAX98937_Brownout__level_1_amp_1_control_2,  0x0c},
+	{MAX98937_Brownout__level_1_amp_1_control_3,  0x0c},
+	{MAX98937_Brownout__level_2_current_limit,  0x12},
+	{MAX98937_Brownout__level_2_amp_1_control_1,  0x00},
+	{MAX98937_Brownout__level_2_amp_1_control_2,  0x0c},
+	{MAX98937_Brownout__level_2_amp_1_control_3,  0x0c},
+	{MAX98937_Brownout__level_3_current_limit,  0x0e},
+	{MAX98937_Brownout__level_3_amp_1_control_1,  0x03},
+	{MAX98937_Brownout__level_3_amp_1_control_2,  0x18},
+	{MAX98937_Brownout__level_3_amp_1_control_3,  0x18},
+	{MAX98937_Brownout__level_4_current_limit,  0x0a},
+	{MAX98937_Brownout__level_4_amp_1_control_1,  0x00},
+	{MAX98937_Brownout__level_4_amp_1_control_2,  0x80},
+	{MAX98937_Brownout__level_4_amp_1_control_3,  0x00},
+	{MAX98937_Brownout_threshold_hysterysis,  0x00},
+	{MAX98937_Brownout_AMP_limiter_attack_release,  0x00},
+	{MAX98937_Brownout_AMP_gain_attack_release,  0x1f},
+	{MAX98937_Brownout_AMP1_clip_mode,  0x00},
+	{MAX98937_Meas_ADC_Config, 0x07},
+	{MAX98937_Meas_ADC_Thermal_Warning_Threshhold, 0x75},
+	{MAX98937_Meas_ADC_Thermal_Shutdown_Threshhold, 0x8c},
+	{MAX98937_Pin_Config,  0x55},
+	{MAX98937_Measurement_DSP_Config, 0xF7},
+	{MAX98937_PCM_Mode_Config, 0x40},
+	{MAX98937_Speaker_source_select, 0x00},
+	{MAX98937_PCM_Tx_Enables_B, 0x00},
+	{MAX98937_PCM_Rx_Enables_B, 0x00},
+	{MAX98937_PCM_Tx_DOUT_Control_2, 0x03},
+	{MAX98937_PCM_Tx_HiZ_Control_B, 0xFF},
+	{MAX98937_Measurement_enables, 0x03},
+	{MAX98937_PDM_Rx_Enable,  0x00},
+	{MAX98937_AMP_volume_control,  0x38},
+	{MAX98937_AMP_DSP_Config,  0x0f},
+	{MAX98937_Speaker_Gain,  0x55},
+	{MAX98937_SSM_Configuration,  0xA0},
+	{MAX98937_Boost_Control_0, 0x1c},
+	{MAX98937_Boost_Control_1, 0x40},
+	{MAX98937_Meas_ADC_Base_Divide_MSByte, 0x00},
+	{MAX98937_Meas_ADC_Base_Divide_LSByte, 0xFF},
+	{MAX98937_Meas_ADC_Thermal_Hysteresis, 0x08},
+	{MAX98937_Env_Tracker_Vout_Headroom, 0x0f},
+	{MAX98937_Env_Tracker_Control,  0x01},
+	{MAX98937_Brownout_enables,  0x02},
+	{MAX98937_PCM_STATUS_WORD_CONFIG_0, 0x00},
+	{MAX98937_PCM_STATUS_WORD_CONFIG_1, 0x00},
+	{MAX98937_PCM_STATUS_WORD_CONFIG_2, 0x00},
+	{MAX98937_Squelch, 0x10},
+	{MAX98937_Boost_Bypass_1, 0x45},
+	{MAX98937_Boost_Bypass_2, 0x2B},
+	{MAX98937_Boost_Bypass_3, 0x04},
 };
 
 int max98927_reg_channel_map[][7][2] = {
@@ -580,31 +634,44 @@ struct param_info {
 
 //MULTIPLE = 3.33,  rdc/(1<<27) * MULTIPLE = [min, max] ohm
 //
-#ifdef CONFIG_MACH_XIAOMI_C3J
-//Speaker DC resistance is 6.8 +/-15% (5.4 --> 8.2)
-//1<<27 is 134217728, for example: 5.4 / 3.33 * 134217728 = 217650370
-#define SPEAKER_RDC_MIN  (217650370)  // 5.4 / 3.33 * (1<<27)
-#define SPEAKER_RDC_MAX  (330506117)  // 8.2 / 3.33 * (1<<27)
-#define SPEAKER_RDC_DEFAULT (274078243)  // 6.8 / 3.33 * 134217728
+static inline uint32_t max989xx_speaker_rdc_min(void)
+{
+	return 217650370; /* 5.4 / 3.33 * (1<<27) */
+}
 
-//Receiver DC resistance is 6.8 +/-15% (5.4 --> 8.2)
-//1<<27 is 134217728, for example: 5.4 / 3.33 * 134217728 = 217650370
-#define EAR_RDC_MIN  (201528120)  // 5 / 3.33 * (1<<27)
-#define EAR_RDC_MAX  (362750616)  // 9 / 3.33 * (1<<27)
-#define EAR_RDC_DEFAULT (274078243)  // 6.8 / 3.33 * 134217728
-#else
-//Speaker DC resistance is 6.8 +/-15% (5.4 --> 8.5)
-//1<<27 is 134217728, for example: 5.4 / 3.33 * 134217728 = 217650370
-#define SPEAKER_RDC_MIN  (217650370)  // 5.4 / 3.33 * (1<<27)
-#define SPEAKER_RDC_MAX  (342597804)  // 8.5 / 3.33 * (1<<27)
-#define SPEAKER_RDC_DEFAULT (274078243)  // 6.8 / 3.33 * 134217728
+static inline uint32_t max989xx_speaker_rdc_max(void)
+{
+	if (max98937_is_ginkgo_c3j())
+		return 330506117; /* 8.2 / 3.33 * (1<<27) */
 
-//Receiver DC resistance is 6.8 +/-15% (5.4 --> 8.5)
-//1<<27 is 134217728, for example: 5.4 / 3.33 * 134217728 = 217650370
-#define EAR_RDC_MIN  (217650370)  // 5.4 / 3.33 * (1<<27)
-#define EAR_RDC_MAX  (342597804)  // 8.5 / 3.33 * (1<<27)
-#define EAR_RDC_DEFAULT (274078243)  // 6.8 / 3.33 * 134217728
-#endif
+	return 342597804; /* 8.5 / 3.33 * (1<<27) */
+}
+
+static inline uint32_t max989xx_speaker_rdc_default(void)
+{
+	return 274078243; /* 6.8 / 3.33 * (1<<27) */
+}
+
+static inline uint32_t max989xx_ear_rdc_min(void)
+{
+	if (max98937_is_ginkgo_c3j())
+		return 201528120; /* 5 / 3.33 * (1<<27) */
+
+	return 217650370; /* 5.4 / 3.33 * (1<<27) */
+}
+
+static inline uint32_t max989xx_ear_rdc_max(void)
+{
+	if (max98937_is_ginkgo_c3j())
+		return 362750616; /* 9 / 3.33 * (1<<27) */
+
+	return 342597804; /* 8.5 / 3.33 * (1<<27) */
+}
+
+static inline uint32_t max989xx_ear_rdc_default(void)
+{
+	return 274078243; /* 6.8 / 3.33 * (1<<27) */
+}
 
 /*
 // Receiver DC resistance is 29, range from 25 to 34
@@ -734,13 +801,22 @@ static struct miscdevice dsm_ctrl_miscdev = {
 
 /* max. length of a alsa mixer control name */
 #define MAX_CONTROL_NAME        48
-#ifdef CONFIG_MACH_XIAOMI_C3J
-#define CALIBRATE_FILE_L   "/mnt/vendor/persist/spkr_calib_l.bin"
-#define CALIBRATE_FILE_R   "/mnt/vendor/persist/spkr_calib_r.bin"
-#else
-#define CALIBRATE_FILE_L   "/mnt/vendor/persist/audio/spkr_calib_l.bin"
-#define CALIBRATE_FILE_R   "/mnt/vendor/persist/audio/spkr_calib_r.bin"
-#endif
+
+static inline const char *max989xx_calibrate_file_l(void)
+{
+	if (max98937_is_ginkgo_c3j())
+		return "/mnt/vendor/persist/spkr_calib_l.bin";
+
+	return "/mnt/vendor/persist/audio/spkr_calib_l.bin";
+}
+
+static inline const char *max989xx_calibrate_file_r(void)
+{
+	if (max98937_is_ginkgo_c3j())
+		return "/mnt/vendor/persist/spkr_calib_r.bin";
+
+	return "/mnt/vendor/persist/audio/spkr_calib_r.bin";
+}
 #define SPK_MUTE_VALUE   (0xCACACACA)
 
 /*static uint32_t max98927_get_default_impedance(int ch)
@@ -768,9 +844,9 @@ static int max989xx_calib_get(uint32_t* calib_value, int ch)
 	const char * filename = NULL;
 
 	if (ch == MAX98927L)
-		filename = CALIBRATE_FILE_L;
+		filename = max989xx_calibrate_file_l();
 	else if (ch == MAX98927R)
-		filename = CALIBRATE_FILE_R;
+		filename = max989xx_calibrate_file_r();
 	else {
 		pr_err("%s: invalid ch: %d\n", __func__, ch);
 		return 0;
@@ -840,11 +916,11 @@ static inline bool rdc_check_valid(uint32_t rdc, int ch)
 	int rdc_min, rdc_max;
 
 	if (ch == MAX98927L) {
-		rdc_min = EAR_RDC_MIN;
-		rdc_max = EAR_RDC_MAX;
+		rdc_min = max989xx_ear_rdc_min();
+		rdc_max = max989xx_ear_rdc_max();
 	} else if (ch == MAX98927R) {
-		rdc_min = SPEAKER_RDC_MIN;
-		rdc_max = SPEAKER_RDC_MAX;
+		rdc_min = max989xx_speaker_rdc_min();
+		rdc_max = max989xx_speaker_rdc_max();
 	} else {
 		pr_err("%s: invalid param ch: %d\n", __func__, ch);
 		return false;
@@ -930,18 +1006,14 @@ static ssize_t max989xx_dbgfs_calibrate_read(struct file *file,
 		pr_info("%s: calibrate [impedance_r]=%d \n", __func__, impedance_r);
 		ret += snprintf(str+ret, PAGE_SIZE, "%d\n", impedance_r);
 	}
-
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	ret = simple_read_from_buffer(user_buf, count, ppos, str, ret);
-#else
-	ret = simple_read_from_buffer(user_buf, count, ppos, str, ret + 1);
-#endif
+	if (max98937_is_ginkgo_c3j())
+		ret = simple_read_from_buffer(user_buf, count, ppos, str, ret);
+	else
+		ret = simple_read_from_buffer(user_buf, count, ppos, str, ret + 1);
 	kfree(str);
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	if (calib_status.l_calib_stat == false)
+	if (max98937_is_ginkgo_c3j() && calib_status.l_calib_stat == false)
 		ret = -EIO;
-#endif
 exit:
 	afe_dsm_post_calib((uint8_t* )payload);
 	mutex_unlock(&dsm_lock);
@@ -1533,8 +1605,6 @@ static int max98927_dai_set_sysclk(struct snd_soc_dai *dai,
 	return 0;
 }
 
-
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static int max98927_regmap_write(struct regmap *map, unsigned int reg, unsigned int val)
 {
     int i;
@@ -1551,7 +1621,6 @@ static int max98927_regmap_write(struct regmap *map, unsigned int reg, unsigned 
 
     return rc;
 }
-#endif
 
 static int max98927_stream_mute(struct snd_soc_dai *codec_dai, int mute, int stream)
 {
@@ -1608,11 +1677,11 @@ static int max98927_stream_mute(struct snd_soc_dai *codec_dai, int mute, int str
 					}
 					regmap_update_bits(max98927->regmap[i], amp_enable, 1, 1);
 					regmap_update_bits(max98927->regmap[i], global_enable, 1, 1);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-					max98927_regmap_write(max98927->regmap[i], 0x0600, 0x54);
-					max98927_regmap_write(max98927->regmap[i], 0x0600, 0x4D);
-					max98927_regmap_write(max98927->regmap[i], 0x030d, 0x40);
-#endif
+					if (max98937_is_ginkgo_c3j()) {
+						max98927_regmap_write(max98927->regmap[i], 0x0600, 0x54);
+						max98927_regmap_write(max98927->regmap[i], 0x0600, 0x4D);
+						max98927_regmap_write(max98927->regmap[i], 0x030d, 0x40);
+					}
 				}
 			}
 
@@ -3008,10 +3077,22 @@ static int max98927_i2c_probe(struct i2c_client *i2c,
 				for (i = 0; i < ARRAY_SIZE(max98937_reg_channel_map[idx]); i++)
 					regmap_write(max98927->regmap[id->driver_data],
 							max98937_reg_channel_map[idx][i][0], max98937_reg_channel_map[idx][i][1]);
+				{
+					const int (*reg_common_map)[2];
+					size_t reg_common_map_sz;
 
-				for (i = 0; i < ARRAY_SIZE(max98937_reg_common_map); i++)
-					regmap_write(max98927->regmap[id->driver_data],
-							max98937_reg_common_map[i][0], max98937_reg_common_map[i][1]);
+					if (max98937_is_ginkgo_c3j()) {
+						reg_common_map = max98937_reg_common_map_ginkgo;
+						reg_common_map_sz = ARRAY_SIZE(max98937_reg_common_map_ginkgo);
+					} else {
+						reg_common_map = max98937_reg_common_map_default;
+						reg_common_map_sz = ARRAY_SIZE(max98937_reg_common_map_default);
+					}
+
+					for (i = 0; i < reg_common_map_sz; i++)
+						regmap_write(max98927->regmap[id->driver_data],
+							reg_common_map[i][0], reg_common_map[i][1]);
+				}
 				break;
 			default:
 				max98927->bIsMax98937[id->driver_data] = UNKNOWN_ID;

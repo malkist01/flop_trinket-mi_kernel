@@ -19,13 +19,12 @@
 #include "msm_cci.h"
 #include "msm_camera_dt_util.h"
 #include <linux/hardware_info.h>
+#include <linux/mi_detect.h>
 #include "msm_sensor_driver.h"
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 extern int main_module_id;
 extern int sub_module_id;
 extern int aux_8m_module_id;
-#endif
 /* Logging macro */
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -37,7 +36,6 @@ static int32_t msm_sensor_driver_platform_probe(struct platform_device *pdev);
 
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static const char *module_info[] = {
 	"Unkonw",
 	"Sunny",
@@ -56,7 +54,6 @@ static const char *module_info[] = {
 	"Unknow",
 	"Liteon",
 };
-#endif
 
 static int msm_sensor_platform_remove(struct platform_device *pdev)
 {
@@ -773,10 +770,9 @@ static int32_t msm_sensor_driver_is_special_support(
 	return rc;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 static struct kobject *msm_sensor_device = NULL;
 static struct kobject *msm_sensorid_device = NULL;
-static char module_info[256] = {0};
+static char module_info_str[256] = {0};
 static char sensor_fusion_id[200] = {0};
 
 static void msm_sensor_set_module_info(struct msm_sensor_ctrl_t *s_ctrl)
@@ -786,26 +782,26 @@ static void msm_sensor_set_module_info(struct msm_sensor_ctrl_t *s_ctrl)
 
 	switch (s_ctrl->sensordata->sensor_info->position) {
 	case BACK_CAMERA_B:
-		strcat(module_info, "back: ");
+		strcat(module_info_str, "back: ");
 		break;
 	case AUX_CAMERA_B:
-		strcat(module_info, "back_aux: ");
+		strcat(module_info_str, "back_aux: ");
 		break;
 	case AUX_CAMERA_W_B:
-		strcat(module_info, "back_macro: ");
+		strcat(module_info_str, "back_macro: ");
 		break;
 	case AUX_CAMERA_G_B:
-		strcat(module_info, "back_wide: ");
+		strcat(module_info_str, "back_wide: ");
 		break;
 	case FRONT_CAMERA_B:
-		strcat(module_info, "front: ");
+		strcat(module_info_str, "front: ");
 		break;
 	default:
-		strcat(module_info, "unknown: ");
+		strcat(module_info_str, "unknown: ");
 		break;
 	}
-	strcat(module_info, s_ctrl->sensordata->sensor_name);
-	strcat(module_info, "\n");
+	strcat(module_info_str, s_ctrl->sensordata->sensor_name);
+	strcat(module_info_str, "\n");
 }
 
 static ssize_t msm_sensor_module_id_show(struct device *dev,
@@ -813,10 +809,19 @@ static ssize_t msm_sensor_module_id_show(struct device *dev,
 {
 	ssize_t rc = 0;
 
-	sprintf(buf, "%s\n", module_info);
+	sprintf(buf, "%s\n", module_info_str);
 	rc = strlen(buf) + 1;
 
 	return rc;
+}
+static inline bool msm_is_ginkgo_c3j(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_C3J) && mi_is_ginkgo();
+}
+
+static inline bool msm_is_laurel_f9s(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
 }
 static DEVICE_ATTR(sensor, 0444, msm_sensor_module_id_show, NULL);
 
@@ -1073,7 +1078,6 @@ static int32_t msm_sensorid_init_device_name(void)
 
 	return 0 ;
 }
-#endif
 
 /* static function definition */
 int32_t msm_sensor_driver_probe(void *setting,
@@ -1144,9 +1148,8 @@ int32_t msm_sensor_driver_probe(void *setting,
 		slave_info->sensor_id_info.sensor_id =
 			slave_info32->sensor_id_info.sensor_id;
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		slave_info->vendor_id_info = slave_info32->vendor_id_info;
-#endif
+		if (msm_is_ginkgo_c3j())
+			slave_info->vendor_id_info = slave_info32->vendor_id_info;
 		slave_info->sensor_id_info.setting.addr_type =
 			slave_info32->sensor_id_info.setting.addr_type;
 		slave_info->sensor_id_info.setting.data_type =
@@ -1298,43 +1301,42 @@ int32_t msm_sensor_driver_probe(void *setting,
 		goto free_slave_info;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (!strcmp(slave_info->sensor_name, "laurus_imx586_sunny")) {
+	if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_imx586_sunny")) {
 		if (main_module_id != 1) {
 			pr_err("failed: main_module_id %d, sensor is not %s",
 			       main_module_id, slave_info->sensor_name);
 			rc = -EINVAL;
 			goto free_slave_info;
 		}
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5kgd1_sunny")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5kgd1_sunny")) {
 		if (sub_module_id != 1) {
 			pr_err("failed: sub_module_id %d, sensor is not %s",
 			       main_module_id, slave_info->sensor_name);
 			rc = -EINVAL;
 			goto free_slave_info;
 		}
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5k4h7_sunny")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5k4h7_sunny")) {
 		if (aux_8m_module_id != 1) {
 			pr_err("failed: aux_8m_module_id %d, sensor is not %s",
 			       main_module_id, slave_info->sensor_name);
 			rc = -EINVAL;
 			goto free_slave_info;
 		}
-	} else if (!strcmp(slave_info->sensor_name, "laurus_imx586_qtech")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_imx586_qtech")) {
 		if (main_module_id != 6) {
 			pr_err("failed: main_module_id %d, sensor is not %s",
 			       main_module_id, slave_info->sensor_name);
 			rc = -EINVAL;
 			goto free_slave_info;
 		}
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5kgd1_ofilm")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5kgd1_ofilm")) {
 		if (sub_module_id != 7) {
 			pr_err("failed: sub_module_id %d, sensor is not %s",
 			       main_module_id, slave_info->sensor_name);
 			rc = -EINVAL;
 			goto free_slave_info;
 		}
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5k4h7_qtech")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5k4h7_qtech")) {
 		if (aux_8m_module_id != 6) {
 			pr_err("failed: aux_8m_module_id %d, sensor is not %s",
 			       main_module_id, slave_info->sensor_name);
@@ -1342,7 +1344,6 @@ int32_t msm_sensor_driver_probe(void *setting,
 			goto free_slave_info;
 		}
 	}
-#endif
 
 	/* Extract s_ctrl from camera id */
 	s_ctrl = g_sctrl[slave_info->camera_id];
@@ -1371,19 +1372,14 @@ int32_t msm_sensor_driver_probe(void *setting,
 		 * and probe already succeeded for that sensor. Ignore this
 		 * probe
 		 */
-#ifdef CONFIG_MACH_XIAOMI_C3J
 		if (slave_info->sensor_id_info.sensor_id ==
 			s_ctrl->sensordata->cam_slave_info->sensor_id_info
-			.sensor_id && !(strcmp(slave_info->sensor_name,
-			s_ctrl->sensordata->cam_slave_info->sensor_name)) &&
-			(slave_info->vendor_id_info.vendor_id ==
-			s_ctrl->sensordata->cam_slave_info->vendor_id_info.vendor_id)) {
-#else
-		if (slave_info->sensor_id_info.sensor_id ==
-			s_ctrl->sensordata->cam_slave_info->sensor_id_info
-			.sensor_id && !(strcmp(slave_info->sensor_name,
-			s_ctrl->sensordata->cam_slave_info->sensor_name))) {
-#endif
+			.sensor_id &&
+			!(strcmp(slave_info->sensor_name,
+				s_ctrl->sensordata->cam_slave_info->sensor_name)) &&
+			(!msm_is_ginkgo_c3j() ||
+			 (slave_info->vendor_id_info.vendor_id ==
+			  s_ctrl->sensordata->cam_slave_info->vendor_id_info.vendor_id))) {
 			pr_err("slot%d: sensor name: %s sensor id%d already probed\n",
 				slave_info->camera_id,
 				slave_info->sensor_name,
@@ -1484,9 +1480,8 @@ CSID_TG:
 	s_ctrl->sensordata->actuator_name = slave_info->actuator_name;
 	s_ctrl->sensordata->ois_name = slave_info->ois_name;
 	s_ctrl->sensordata->flash_name = slave_info->flash_name;
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	s_ctrl->sensordata->vendor_id_info = &(slave_info->vendor_id_info);
-#endif
+	if (msm_is_ginkgo_c3j())
+		s_ctrl->sensordata->vendor_id_info = &(slave_info->vendor_id_info);
 	/*
 	 * Update eeporm subdevice Id by input eeprom name
 	 */
@@ -1547,31 +1542,25 @@ CSID_TG:
 		goto camera_power_down;
 	}
 
-#ifndef CONFIG_MACH_XIAOMI_C3J
-	/* Power down */
-	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
-#endif
+	if (!msm_is_ginkgo_c3j())
+		s_ctrl->func_tbl->sensor_power_down(s_ctrl);
 
 	rc = msm_sensor_fill_slave_info_init_params(
 		slave_info,
 		s_ctrl->sensordata->sensor_info);
 	if (rc < 0) {
 		pr_err("%s Fill slave info failed", slave_info->sensor_name);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		goto camera_power_down;
-#else
+		if (msm_is_ginkgo_c3j())
+			goto camera_power_down;
 		goto free_camera_info;
-#endif
 	}
 	rc = msm_sensor_validate_slave_info(s_ctrl->sensordata->sensor_info);
 	if (rc < 0) {
 		pr_err("%s Validate slave info failed",
 			slave_info->sensor_name);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-		goto camera_power_down;
-#else
+		if (msm_is_ginkgo_c3j())
+			goto camera_power_down;
 		goto free_camera_info;
-#endif
 	}
 	/* Update sensor mount angle and position in media entity flag */
 	is_yuv = (slave_info->output_format == MSM_SENSOR_YCBCR) ? 1 : 0;
@@ -1586,42 +1575,41 @@ CSID_TG:
 	s_ctrl->sensordata->cam_slave_info = slave_info;
 
 	msm_sensor_fill_sensor_info(s_ctrl, probed_info, entity_name);
-#ifdef CONFIG_MACH_XIAOMI_C3J
-	msm_sensor_init_device_name();
-	msm_sensor_set_module_info(s_ctrl);
-	msm_sensorid_init_device_name();
-	msm_sensor_set_sensor_id(s_ctrl);
+	if (msm_is_ginkgo_c3j()) {
+		msm_sensor_init_device_name();
+		msm_sensor_set_module_info(s_ctrl);
+		msm_sensorid_init_device_name();
+		msm_sensor_set_sensor_id(s_ctrl);
 
-	/* Power down */
-	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
-#endif
+		/* Power down */
+		s_ctrl->func_tbl->sensor_power_down(s_ctrl);
+	}
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	if (!strcmp(slave_info->sensor_name, "laurus_imx586_sunny")) {
+	if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_imx586_sunny")) {
 		hardwareinfo_set_prop(HARDWARE_BACK_CAM, "sony_imx586_i");
 		hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID,
 				      module_info[main_module_id]);
-	} else if (!strcmp(slave_info->sensor_name, "laurus_imx586_qtech")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_imx586_qtech")) {
 		hardwareinfo_set_prop(HARDWARE_BACK_CAM, "sony_imx586_ii");
 		hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Qtech");
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5kgd1_sunny")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5kgd1_sunny")) {
 		hardwareinfo_set_prop(HARDWARE_FRONT_CAM, "samsung_s5kgd1_i");
 		hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID,
 				      module_info[sub_module_id]);
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5kgd1_ofilm")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5kgd1_ofilm")) {
 		hardwareinfo_set_prop(HARDWARE_FRONT_CAM, "samsung_s5kgd1_ii");
 		hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "Ofilm");
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5k4h7_sunny")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5k4h7_sunny")) {
 		hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM,
 				      "samsung_s5k4h7_i");
 		hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID,
 				      module_info[aux_8m_module_id]);
-	} else if (!strcmp(slave_info->sensor_name, "laurus_s5k4h7_qtech")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_s5k4h7_qtech")) {
 		hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM,
 				      "samsung_s5k4h7_ii");
 		hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID,
 				      "Qtech");
-	} else if (!strcmp(slave_info->sensor_name, "laurus_ov02a10_sunny")) {
+	} else if (msm_is_laurel_f9s() && !strcmp(slave_info->sensor_name, "laurus_ov02a10_sunny")) {
 		hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, "ov_ov02a10_i");
 		hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID,
 				      "Sunny");
@@ -1633,7 +1621,6 @@ CSID_TG:
 		hardwareinfo_set_prop(HARDWARE_BACK_CAM, "qtech_imx582_ii");
 		hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Qtech");
 	}
-#endif
 
 	/*
 	 * Set probe succeeded flag to 1 so that no other camera shall

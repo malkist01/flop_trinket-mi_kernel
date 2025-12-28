@@ -12,8 +12,11 @@
  */
 
 #include <linux/msm_drm_notify.h>
+#include <asm/barrier.h>
 
 static BLOCKING_NOTIFIER_HEAD(msm_drm_notifier_list);
+
+static bool notifier_enabled __read_mostly = true;
 
 /**
  * msm_drm_register_client - register a client notifier
@@ -52,7 +55,17 @@ EXPORT_SYMBOL(msm_drm_unregister_client);
  */
 int msm_drm_notifier_call_chain(unsigned long val, void *v)
 {
+	if (unlikely(!notifier_enabled))
+		return 0;
+
 	return blocking_notifier_call_chain(&msm_drm_notifier_list, val,
 					    v);
 }
 EXPORT_SYMBOL(msm_drm_notifier_call_chain);
+
+void msm_drm_notifier_enable(bool val)
+{
+	notifier_enabled = val;
+	mb();
+}
+EXPORT_SYMBOL(msm_drm_notifier_enable);

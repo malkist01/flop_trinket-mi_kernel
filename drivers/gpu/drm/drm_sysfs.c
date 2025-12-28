@@ -17,14 +17,13 @@
 #include <linux/gfp.h>
 #include <linux/err.h>
 #include <linux/export.h>
+#include <linux/mi_detect.h>
 
 #include <drm/drm_sysfs.h>
 #include <drm/drmP.h>
 #include "drm_internal.h"
-#ifdef CONFIG_MACH_XIAOMI_F9S
 #include "./msm/sde/sde_connector.h"
 #include "./msm/dsi-staging/dsi_display.h"
-#endif
 
 #define to_drm_minor(d) dev_get_drvdata(d)
 #define to_drm_connector(d) dev_get_drvdata(d)
@@ -233,13 +232,21 @@ static ssize_t modes_show(struct device *device,
 	return written;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-unsigned long disp_param_value = 0;
+static unsigned long disp_param_value;
+
+static bool drm_sysfs_disp_param_supported(void)
+{
+	return IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel();
+}
+
 static ssize_t disp_param_show(struct device *device,
 			       struct device_attribute *attr,
 			       char *buf)
 {
 	ssize_t count = 0;
+
+	if (!drm_sysfs_disp_param_supported())
+		return -EOPNOTSUPP;
 
 	count = snprintf(buf + count, PAGE_SIZE, "disp_param_value : 0x%lx\n",
 			 disp_param_value);
@@ -254,6 +261,9 @@ static ssize_t disp_param_store(struct device *device,
 	struct sde_connector *c_conn;
 	struct dsi_display *display;
 	uint32_t param;
+
+	if (!drm_sysfs_disp_param_supported())
+		return -EOPNOTSUPP;
 
 	c_conn = container_of(connector, struct sde_connector, base);
 	if (!c_conn || !c_conn->display) {
@@ -270,26 +280,31 @@ static ssize_t disp_param_store(struct device *device,
 
 	return count;
 }
-#endif
 
 static DEVICE_ATTR_RW(status);
 static DEVICE_ATTR_RO(enabled);
 static DEVICE_ATTR_RO(dpms);
 static DEVICE_ATTR_RO(modes);
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static DEVICE_ATTR_RW(disp_param);
-#endif
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_status.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_dpms.attr,
 	&dev_attr_modes.attr,
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	&dev_attr_disp_param.attr,
-#endif
 	NULL
 };
+
+static umode_t connector_dev_attr_is_visible(struct kobject *kobj,
+					struct attribute *attr, int attrno)
+{
+	if (attr == &dev_attr_disp_param.attr &&
+	    !drm_sysfs_disp_param_supported())
+		return 0;
+
+	return attr->mode;
+}
 
 static struct bin_attribute edid_attr = {
 	.attr.name = "edid",
@@ -306,6 +321,7 @@ static struct bin_attribute *connector_bin_attrs[] = {
 static const struct attribute_group connector_dev_group = {
 	.attrs = connector_dev_attrs,
 	.bin_attrs = connector_bin_attrs,
+	.is_visible = connector_dev_attr_is_visible,
 };
 
 static const struct attribute_group *connector_dev_groups[] = {

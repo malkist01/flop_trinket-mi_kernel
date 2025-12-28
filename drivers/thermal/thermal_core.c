@@ -25,6 +25,7 @@
 #include <net/netlink.h>
 #include <net/genetlink.h>
 #include <linux/suspend.h>
+#include <linux/mi_detect.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/thermal.h>
@@ -129,9 +130,9 @@ static int thermal_set_governor(struct thermal_zone_device *tz,
 	return ret;
 }
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 static struct device *device_scfg;
 
+#ifndef CONFIG_THERMAL_SWITCH
 static int temp=0;
 static ssize_t
  temp_state_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -175,7 +176,7 @@ static ssize_t
 }
 
 static DEVICE_ATTR(sconfig, 0664, sconfig_show,sconfig_store);
-#endif
+#endif /* !CONFIG_THERMAL_SWITCH */
 
 int thermal_register_governor(struct thermal_governor *governor)
 {
@@ -1772,9 +1773,8 @@ static int __init thermal_init(void)
 {
 	int result;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	device_scfg = kzalloc(sizeof(struct device), GFP_KERNEL);
-#endif
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel())
+		device_scfg = kzalloc(sizeof(struct device), GFP_KERNEL);
 
 	mutex_init(&poweroff_lock);
 	thermal_passive_wq = alloc_workqueue("thermal_passive_wq",
@@ -1793,21 +1793,21 @@ static int __init thermal_init(void)
 	if (result)
 		goto unregister_governors;
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	dev_set_name(device_scfg, "thermal_message");
-	device_scfg->class = &thermal_class;
-	result = device_register(device_scfg);
-	if (result)
-	goto exit_zone_parse;
+	if (IS_ENABLED(CONFIG_MACH_XIAOMI_F9S) && mi_is_laurel() && device_scfg) {
+		dev_set_name(device_scfg, "thermal_message");
+		device_scfg->class = &thermal_class;
+		result = device_register(device_scfg);
+		if (result)
+			goto exit_zone_parse;
 
-	result = device_create_file(device_scfg, &dev_attr_temp_state);
-	if (result)
-	goto exit_zone_parse;
+		result = device_create_file(device_scfg, &dev_attr_temp_state);
+		if (result)
+			goto exit_zone_parse;
 
-	result = device_create_file(device_scfg, &dev_attr_sconfig);
-	if (result)
-	goto exit_zone_parse;
-#endif
+		result = device_create_file(device_scfg, &dev_attr_sconfig);
+		if (result)
+			goto exit_zone_parse;
+	}
 
 	result = of_parse_thermal_zones();
 	if (result)
@@ -1836,9 +1836,8 @@ error:
 	mutex_destroy(&thermal_list_lock);
 	mutex_destroy(&thermal_governor_lock);
 	mutex_destroy(&poweroff_lock);
-#ifdef CONFIG_MACH_XIAOMI_F9S
-	kfree(device_scfg);
-#endif
+	if (device_scfg)
+		kfree(device_scfg);
 	return result;
 }
 

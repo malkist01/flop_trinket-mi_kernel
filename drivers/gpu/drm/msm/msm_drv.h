@@ -73,10 +73,8 @@ struct msm_gem_vma;
 
 #define TEARDOWN_DEADLOCK_RETRY_MAX 5
 
-#ifdef CONFIG_MACH_XIAOMI_C3J
 extern atomic_t resume_pending;
 extern wait_queue_head_t resume_wait_q;
-#endif
 
 struct msm_file_private {
 	/* update the refcount when user driver calls power_ctrl IOCTL */
@@ -108,9 +106,7 @@ enum msm_mdp_plane_property {
 
 	/* range properties */
 	PLANE_PROP_ZPOS = PLANE_PROP_BLOBCOUNT,
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	PLANE_PROP_FOD,
-#endif
 	PLANE_PROP_ALPHA,
 	PLANE_PROP_COLOR_FILL,
 	PLANE_PROP_H_DECIMATE,
@@ -283,7 +279,6 @@ enum msm_event_wait {
 	MSM_ENC_ACTIVE_REGION,
 };
 
-#ifdef CONFIG_MACH_XIAOMI_F9S
 /**
  * enum msm_dim_layer_type - global dimming layer types
  * @MSM_DIM_LAYER_NONE:	None (used to indicate there is no dimming active)
@@ -295,7 +290,6 @@ enum msm_dim_layer_type {
 	MSM_DIM_LAYER_TOP,
 	MSM_DIM_LAYER_FOD,
 };
-#endif
 
 /**
  * struct msm_roi_alignment - region of interest alignment restrictions
@@ -567,9 +561,7 @@ struct msm_roi_list {
 struct msm_display_kickoff_params {
 	struct msm_roi_list *rois;
 	struct drm_msm_ext_hdr_metadata *hdr_meta;
-#ifdef CONFIG_MACH_XIAOMI_F9S
 	enum msm_dim_layer_type dim_layer_type;
-#endif
 };
 
 /**
