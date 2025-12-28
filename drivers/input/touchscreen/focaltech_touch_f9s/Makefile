@@ -1,5 +1,8 @@
 # Makefile for the focaltech touchscreen drivers.
 
+ccflags-y += -include $(srctree)/drivers/input/touchscreen/focaltech_touch_f9s/focaltech_namespace.h
+subdir-ccflags-y += -include $(srctree)/drivers/input/touchscreen/focaltech_touch_f9s/focaltech_namespace.h
+
 
 obj-$(CONFIG_TOUCHSCREEN_FTS_F9S)	+=  focaltech_core.o
 obj-$(CONFIG_TOUCHSCREEN_FTS_F9S)	+=  focaltech_ex_fun.o
