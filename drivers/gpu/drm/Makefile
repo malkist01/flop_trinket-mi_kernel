@@ -3,7 +3,8 @@
 # Makefile for the drm device driver.  This driver provides support for the
 # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
 
-ccflags-$(CONFIG_MACH_XIAOMI_F9S) += -Idrivers/gpu/drm/msm -Iinclude/drm
+ccflags-y += -Iinclude/drm
+ccflags-$(CONFIG_DRM_MSM) += -Idrivers/gpu/drm/msm
 
 drm-y       :=	drm_auth.o drm_bufs.o drm_cache.o \
 		drm_context.o drm_dma.o \
