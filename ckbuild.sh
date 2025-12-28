@@ -147,6 +147,7 @@ USE_CCACHE=1
 ## Parse arguments
 DO_KSU=0
 DO_SUKI=0
+DO_RKSU=0
 DO_CLEAN=0
 DO_MENUCONFIG=0
 IS_RELEASE=0
@@ -166,6 +167,10 @@ for arg in "$@"; do
     if [[ "$arg" == *s* ]]; then
         echo "INFO: SukiSU argument passed"
         DO_SUKI=1
+    fi
+    if [[ "$arg" == *u* ]]; then
+        echo "INFO: RKSU argument passed"
+        DO_RKSU=1
     fi
     if [[ "$arg" == *c* ]]; then
         echo "INFO: clean build enabled"
@@ -194,8 +199,12 @@ for arg in "$@"; do
     fi
 done
 
-if [ "$DO_KSU" == "1" ] && [ "$DO_SUKI" == "1" ]; then
-    echo "ERROR: KernelSU and SukiSU are mutually exclusive."
+KSU_COUNT=0
+[ "$DO_KSU" == "1" ] && KSU_COUNT=$((KSU_COUNT + 1))
+[ "$DO_SUKI" == "1" ] && KSU_COUNT=$((KSU_COUNT + 1))
+[ "$DO_RKSU" == "1" ] && KSU_COUNT=$((KSU_COUNT + 1))
+if [ "$KSU_COUNT" -gt 1 ]; then
+    echo "ERROR: KSU variants are mutually exclusive. Please select only one."
     exit 1
 fi
 
@@ -245,6 +254,9 @@ if [[ "$DO_KSU" == "1" ]]; then
 elif [ "$DO_SUKI" == "1" ]; then
     CK_TYPE="SukiSU-Ultra"
     CK_TYPE_SHORT="SSU"
+elif [ "$DO_RKSU" == "1" ]; then
+    CK_TYPE="RKSU"
+    CK_TYPE_SHORT="RKS"
 else
     CK_TYPE="Vanilla"
     CK_TYPE_SHORT="V"
@@ -584,7 +596,7 @@ build() {
         rm -f out/.config
         make O=out ARCH=arm64 "$DEFCONFIG" 2>&1 | tee log.txt
     else
-        make O=out ARCH=arm64 "$DEFCONFIG" "$BASE_FRAGMENT" "$FRAGMENT" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") 2>&1 | tee log.txt
+        make O=out ARCH=arm64 "$DEFCONFIG" "$BASE_FRAGMENT" "$FRAGMENT" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") $([ "$DO_RKSU" = "1" ] && echo "rksu.config") 2>&1 | tee log.txt
     fi
 
     # Delete leftovers

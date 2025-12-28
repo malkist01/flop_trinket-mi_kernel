@@ -16,6 +16,12 @@ config KSU_SUKI
 	help
 	  Enable SukiSU Ultra with SUSFS support.
 
+config KSU_RKSU
+	bool "RKSU"
+	select OVERLAY_FS
+	help
+	  Enable RKSU.
+
 endchoice
 
 choice
@@ -115,3 +121,4 @@ config KSU_ALLOWLIST_WORKAROUND
 # Load variant-specific configs
 source "drivers/kernelsu/kernel/Kconfig"
 source "drivers/sukisu/kernel/Kconfig"
+source "drivers/rksu/kernel/Kconfig"
