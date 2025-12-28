@@ -596,7 +596,12 @@ build() {
         rm -f out/.config
         make O=out ARCH=arm64 "$DEFCONFIG" 2>&1 | tee log.txt
     else
-        make O=out ARCH=arm64 "$DEFCONFIG" "$BASE_FRAGMENT" "$FRAGMENT" $([[ "$DO_KSU" == "1" ]] && echo "ksu.config") $([ "$DO_SUKI" = "1" ] && echo "sukisu.config") $([ "$DO_RKSU" = "1" ] && echo "rksu.config") 2>&1 | tee log.txt
+        FRAGMENTS="$BASE_FRAGMENT $FRAGMENT"
+        [[ "$DO_KSU" == "1" ]] && FRAGMENTS="$FRAGMENTS ksu.config"
+        [[ "$DO_SUKI" == "1" ]] && FRAGMENTS="$FRAGMENTS sukisu.config"
+        [[ "$DO_RKSU" == "1" ]] && FRAGMENTS="$FRAGMENTS rksu.config"
+
+        make O=out ARCH=arm64 "$DEFCONFIG" $FRAGMENTS 2>&1 | tee log.txt
     fi
 
     # Delete leftovers
