@@ -5130,8 +5130,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 
 	if (mi_is_laurel()) {
-		if (!rc)
-			panel->panel_initialized = true;
+		panel->panel_initialized = true;
 
 		/* Restore HBM mode if enabled by user */
 		if (panel->hbm_enabled)
