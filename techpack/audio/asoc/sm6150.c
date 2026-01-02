@@ -8094,6 +8094,14 @@ static void msm_sm6150_runtime_fixup_links(struct snd_soc_dai_link *links,
 	int i;
 
 	for (i = 0; i < num_links; i++) {
+		/*
+		 * Only modify backend links (no_pcm=1).
+		 * Frontend and backend DAI enums share numeric values
+		 * (e.g., MSM_FRONTEND_DAI_VOICEMMODE1 == MSM_BACKEND_DAI_PRI_MI2S_RX == 43).
+		 */
+		if (!links[i].no_pcm)
+			continue;
+
 		switch (links[i].id) {
 		case MSM_BACKEND_DAI_PRI_MI2S_RX:
 		case MSM_BACKEND_DAI_PRI_MI2S_TX:
