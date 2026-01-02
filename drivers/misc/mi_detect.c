@@ -140,7 +140,7 @@ static int __init mi_detect_initcall(void)
 
 	return 0;
 }
-rootfs_initcall(mi_detect_initcall);
+pure_initcall(mi_detect_initcall);
 
 static void __exit mi_detect_exit(void)
 {
