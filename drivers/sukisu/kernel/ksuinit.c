@@ -33,19 +33,12 @@ struct cred *ksu_cred;
 
 extern void __init ksu_lsm_hook_init(void);
 
-#include "sulog.h"
-#include "dynamic_manager.h"
-
 void sukisu_custom_config_init(void)
 {
 }
 
 void sukisu_custom_config_exit(void)
 {
-	ksu_dynamic_manager_exit();
-#if __SULOG_GATE
-	ksu_sulog_exit();
-#endif
 }
 
 int __init kernelsu_init(void)
@@ -59,15 +52,15 @@ int __init kernelsu_init(void)
 	pr_alert(
 		"*************************************************************");
 	pr_alert(
-		"**	 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE	**");
+		"**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
 	pr_alert(
-		"**														 **");
+		"**                                                         **");
 	pr_alert(
-		"**		 You are running KernelSU in DEBUG mode		  **");
+		"**         You are running KernelSU in DEBUG mode          **");
 	pr_alert(
-		"**														 **");
+		"**                                                         **");
 	pr_alert(
-		"**	 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE	**");
+		"**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
 	pr_alert(
 		"*************************************************************");
 #endif
@@ -116,7 +109,9 @@ int __init kernelsu_init(void)
 	return 0;
 }
 
-#if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_SUSFS)
+#if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_SUSFS) ||          \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0) &&                      \
+	 defined(CONFIG_KSU_MANUAL_HOOK))
 extern void ksu_observer_exit(void);
 #endif
 
@@ -126,7 +121,9 @@ void kernelsu_exit(void)
 
 	ksu_throne_tracker_exit();
 
-#if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_SUSFS)
+#if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_SUSFS) ||          \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0) &&                      \
+	 defined(CONFIG_KSU_MANUAL_HOOK))
 	ksu_observer_exit();
 #endif
 #ifndef CONFIG_KSU_SUSFS
