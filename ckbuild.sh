@@ -51,7 +51,7 @@ case "$TARGET_DEVICE" in
         ;;
     mitrinket)
         AK3_BRANCH="floppy-unity"
-        DEVICE="Unified Ginkgo/Laurel"
+        DEVICE="Redmi Note 8/8T and Xiaomi Mi A3"
         CODENAME="mitrinket"
         FRAGMENT="vendor/unified.config"
         ;;
