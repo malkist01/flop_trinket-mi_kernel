@@ -252,7 +252,7 @@ if [[ "$DO_KSU" == "1" ]]; then
     CK_TYPE="KSUNext-NOSUS"
     CK_TYPE_SHORT="KN"
 elif [ "$DO_SUKI" == "1" ]; then
-    CK_TYPE="SukiSU-Ultra"
+    CK_TYPE="SukiSU-Ultra-NOSUS"
     CK_TYPE_SHORT="SKS"
 elif [ "$DO_RKSU" == "1" ]; then
     CK_TYPE="RKSU"
