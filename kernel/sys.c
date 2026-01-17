@@ -1230,12 +1230,23 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 #endif
 
 #ifndef CONFIG_FAKE_UNAME_NONE
-	if (is_bpf_spoof_enabled()) {
-		if (!strncmp(current->comm, "bpfloader", 9) ||
-			!strncmp(current->comm, "netbpfload", 10) ||
-			!strncmp(current->comm, "netd", 4) ||
-			!strncmp(current->comm, "uprobestats", 11)) {
-			if (current_uid().val == 0) {
+		int bpf_spoof = is_bpf_spoof_enabled();
+		if (bpf_spoof) {
+			bool match = false;
+			if (bpf_spoof == 1) {
+				// Partial mode: only spoof for netbpfload
+				if (!strncmp(current->comm, "netbpfload", 10))
+					match = true;
+			} else {
+				// Full mode: spoof for the expected BPF loaders
+				if (!strncmp(current->comm, "bpfloader", 9) ||
+				    !strncmp(current->comm, "netbpfload", 10) ||
+				    !strncmp(current->comm, "netd", 4) ||
+				    !strncmp(current->comm, "uprobestats", 11))
+					match = true;
+			}
+			if (match) {
+				if (current_uid().val == 0) {
 #if defined(CONFIG_FAKE_UNAME_4_19)
 				strcpy(tmp.release, "4.19.325");
 #elif defined(CONFIG_FAKE_UNAME_5_4)
