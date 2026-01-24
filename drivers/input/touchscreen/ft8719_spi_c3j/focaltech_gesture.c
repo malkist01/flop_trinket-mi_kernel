@@ -34,6 +34,8 @@
 * 1.Included header files
 *****************************************************************************/
 #include "focaltech_core.h"
+#include <linux/pm_wakeup.h>
+#include <linux/pm_wakeirq.h>
 #ifdef CONFIG_TOUCHSCREEN_COMMON
 #include <linux/input/tp_common.h>
 #endif
@@ -423,6 +425,11 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
         FTS_DEBUG("enable_irq_wake(irq:%d) fail", ts_data->irq);
     }
 
+#ifdef CONFIG_PM
+    if (ts_data && ts_data->input_dev)
+        dev_pm_set_wake_irq(&ts_data->input_dev->dev, ts_data->irq);
+#endif
+
     fts_gesture_data.active = ENABLE;
     FTS_INFO("Enter into gesture(suspend) successfully!");
     return 0;
@@ -464,6 +471,11 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
         FTS_ERROR("exit gesture(resume) fail");
         return -EIO;
     }
+
+#ifdef CONFIG_PM
+    if (ts_data && ts_data->input_dev)
+        dev_pm_clear_wake_irq(&ts_data->input_dev->dev);
+#endif
 
     ret = disable_irq_wake(ts_data->irq);
     if (ret) {
@@ -554,6 +566,11 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
         FTS_ERROR("%s: Failed to create double_tap node err=%d\n",
                   __func__, ret);
     }
+#endif
+
+#ifdef CONFIG_PM
+    if (ts_data && ts_data->input_dev)
+        device_init_wakeup(&ts_data->input_dev->dev, true);
 #endif
 
     memset(&fts_gesture_data, 0, sizeof(struct fts_gesture_st));
