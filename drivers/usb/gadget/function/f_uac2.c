@@ -209,7 +209,7 @@ static struct uac2_output_terminal_descriptor io_out_ot_desc = {
 
 	.bDescriptorSubtype = UAC_OUTPUT_TERMINAL,
 	.bTerminalID = IO_OUT_OT_ID,
-	.wTerminalType = cpu_to_le16(UAC_OUTPUT_TERMINAL_UNDEFINED),
+	.wTerminalType = cpu_to_le16(CONFIG_USB_UAC2_OUTPUT_TERMINAL_TYPE),
 	.bAssocTerminal = 0,
 	.bSourceID = USB_OUT_IT_ID,
 	.bCSourceID = USB_OUT_CLK_ID,
