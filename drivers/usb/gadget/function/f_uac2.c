@@ -88,7 +88,7 @@ static char clksrc_in[8];
 static char clksrc_out[8];
 
 static struct usb_string strings_fn[] = {
-	[STR_ASSOC].s = "Source/Sink",
+	[STR_ASSOC].s = CONFIG_USB_UAC2_DEVICE_NAME,
 	[STR_IF_CTRL].s = "Topology Control",
 	[STR_CLKSRC_IN].s = clksrc_in,
 	[STR_CLKSRC_OUT].s = clksrc_out,
