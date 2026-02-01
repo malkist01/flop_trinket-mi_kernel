@@ -42,6 +42,9 @@ struct g_audio {
 	struct usb_ep *in_ep;
 	struct usb_ep *out_ep;
 
+	/* feedback IN endpoint for capture */
+	struct usb_ep *in_ep_fback;
+
 	/* Max packet size for all in_ep possible speeds */
 	unsigned int in_ep_maxpsize;
 	/* Max packet size for all out_ep possible speeds */
