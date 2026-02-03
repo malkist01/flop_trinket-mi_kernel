@@ -105,7 +105,6 @@ static bool delay_gesture = false;
 /*****************************************************************************
 * Global variable or extern global variabls/functions
 *****************************************************************************/
-extern int32_t fts_ts_enable_regulator(bool en);
 
 bool fts_ts_is_gesture_mode(void)
 {
@@ -502,13 +501,9 @@ int fts_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int co
         }
         if (value == WAKEUP_OFF) {
             fts_gesture_data.mode = DISABLE;
-            if (fts_ts_enable_regulator(false) < 0)
-                FTS_ERROR("Failed to diable regulator");
             FTS_INFO("disable gesture mode");
         } else if (value == WAKEUP_ON) {
             fts_gesture_data.mode = ENABLE;
-            if (fts_ts_enable_regulator(true) < 0)
-                FTS_ERROR("Failed to enable regulator");
             FTS_INFO("enable gesture mode");
         }
     }
