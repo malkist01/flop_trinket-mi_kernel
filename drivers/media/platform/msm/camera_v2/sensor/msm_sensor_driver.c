@@ -1114,12 +1114,40 @@ int32_t msm_sensor_driver_probe(void *setting,
 			rc = -ENOMEM;
 			goto free_slave_info;
 		}
-		if (copy_from_user(slave_info32, (void __user *)setting,
-			sizeof(*slave_info32))) {
-			pr_err("failed: copy_from_user");
-			rc = -EFAULT;
-			kfree(slave_info32);
-			goto free_slave_info;
+		/*
+		 * laurel camera HAL doesn't expect vendor_id_info so we
+		 * need to handle it in runtime, otherwise the HAL breaks.
+		 * copy it in two stages for laurel to avoid a 20 byte ABI
+		 * mismatch that would shift all fields past sensor_id_info.
+		 */
+		if (msm_is_ginkgo_c3j()) {
+			if (copy_from_user(slave_info32,
+				(void __user *)setting,
+				sizeof(*slave_info32))) {
+				pr_err("failed: copy_from_user");
+				rc = -EFAULT;
+				kfree(slave_info32);
+				goto free_slave_info;
+			}
+		} else {
+			const size_t pre = offsetof(
+				struct msm_camera_sensor_slave_info32,
+				vendor_id_info);
+			const size_t post = sizeof(*slave_info32) -
+				offsetof(
+					struct msm_camera_sensor_slave_info32,
+					power_setting_array);
+
+			if (copy_from_user(slave_info32,
+				(void __user *)setting, pre) ||
+			    copy_from_user(
+				&slave_info32->power_setting_array,
+				(void __user *)setting + pre, post)) {
+				pr_err("failed: copy_from_user");
+				rc = -EFAULT;
+				kfree(slave_info32);
+				goto free_slave_info;
+			}
 		}
 
 		strlcpy(slave_info->actuator_name, slave_info32->actuator_name,
@@ -1222,11 +1250,33 @@ int32_t msm_sensor_driver_probe(void *setting,
 	} else
 #endif
 	{
-		if (copy_from_user(slave_info,
-			(void __user *)setting, sizeof(*slave_info))) {
-			pr_err("failed: copy_from_user");
-			rc = -EFAULT;
-			goto free_slave_info;
+		/* Same ABI mismatch handling as the compat path */
+		if (msm_is_ginkgo_c3j()) {
+			if (copy_from_user(slave_info,
+				(void __user *)setting,
+				sizeof(*slave_info))) {
+				pr_err("failed: copy_from_user");
+				rc = -EFAULT;
+				goto free_slave_info;
+			}
+		} else {
+			const size_t pre = offsetof(
+				struct msm_camera_sensor_slave_info,
+				vendor_id_info);
+			const size_t post = sizeof(*slave_info) -
+				offsetof(
+					struct msm_camera_sensor_slave_info,
+					power_setting_array);
+
+			if (copy_from_user(slave_info,
+				(void __user *)setting, pre) ||
+			    copy_from_user(
+				&slave_info->power_setting_array,
+				(void __user *)setting + pre, post)) {
+				pr_err("failed: copy_from_user");
+				rc = -EFAULT;
+				goto free_slave_info;
+			}
 		}
 		if (!slave_info->sensor_id_info.setting.size ||
 			slave_info->sensor_id_info.setting.size >
