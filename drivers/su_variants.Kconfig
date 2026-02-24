@@ -26,7 +26,7 @@ endchoice
 
 choice
 	prompt "Hook method"
-	depends on KSU_NEXT || KSU_SUKI
+	depends on KSU_NEXT || KSU_SUKI || KSU_RKSU
 	default KSU_KPROBES_HOOK
 	help
 	  Select which hook method to use.
