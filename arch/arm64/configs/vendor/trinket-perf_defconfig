@@ -5286,10 +5286,6 @@ CONFIG_FSTABDT_DISABLE=y
 #
 
 #
-# KernelSU - SUSFS
-#
-
-#
 # Firmware Drivers
 #
 CONFIG_ARM_PSCI_FW=y
