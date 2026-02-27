@@ -57,6 +57,8 @@ KSU_VERSION_SRC := $(KSU_SRC)
 KSU_FALLBACK_REPO := https://github.com/ReSukiSU/ReSukiSU.git
 KSU_FALLBACK_COMMIT := 5fb3ab698f28488440bdf093517ce34479b01963
 KSU_FALLBACK_DIR := /tmp/resukisu-meta-cache
+# Set to y to keep hard-failing on incompatible legacy hooks.
+KSU_STRICT_INCOMPAT_HOOK_CHECK ?= n
 
 LOCAL_GIT_EXISTS := $(shell test -e $(KSU_SRC)/../.git && echo 1 || echo 0)
 
@@ -329,16 +331,26 @@ ifeq ($(CONFIG_KSU_MANUAL_HOOK), y)
     endif
   endif
 
-  ifeq ($(shell grep -q "ksu_vfs_read_hook" $(srctree)/fs/read_write.c; echo $$?),0)
-    $(info -- ksu_vfs_read_hook is incompatible hook)
-    $(info -- Read: https://resukisu.github.io/guide/manual-integrate.html)
-    $(error You should integrate $(REPO_NAME) in your kernel correctly.)
-  endif
+  ifeq ($(CONFIG_KSU_SUKI),y)
+    ifeq ($(shell grep -q "ksu_vfs_read_hook" $(srctree)/fs/read_write.c; echo $$?),0)
+      $(info -- ksu_vfs_read_hook is incompatible hook)
+      $(info -- Read: https://resukisu.github.io/guide/manual-integrate.html)
+      ifeq ($(KSU_STRICT_INCOMPAT_HOOK_CHECK),y)
+        $(error You should integrate $(REPO_NAME) in your kernel correctly.)
+      else
+        $(info -- WARNING: continuing despite incompatible hook (KSU_STRICT_INCOMPAT_HOOK_CHECK=$(KSU_STRICT_INCOMPAT_HOOK_CHECK)))
+      endif
+    endif
 
-  ifeq ($(shell grep -q "is_ksu_transition" $(srctree)/security/selinux/hooks.c; echo $$?),0)
-    $(info -- is_ksu_transition is incompatible hook)
-    $(info -- Read: https://resukisu.github.io/guide/manual-integrate.html)
-    $(error You should integrate $(REPO_NAME) in your kernel correctly.)
+    ifeq ($(shell grep -q "is_ksu_transition" $(srctree)/security/selinux/hooks.c; echo $$?),0)
+      $(info -- is_ksu_transition is incompatible hook)
+      $(info -- Read: https://resukisu.github.io/guide/manual-integrate.html)
+      ifeq ($(KSU_STRICT_INCOMPAT_HOOK_CHECK),y)
+        $(error You should integrate $(REPO_NAME) in your kernel correctly.)
+      else
+        $(info -- WARNING: continuing despite incompatible hook (KSU_STRICT_INCOMPAT_HOOK_CHECK=$(KSU_STRICT_INCOMPAT_HOOK_CHECK)))
+      endif
+    endif
   endif
 
   ifeq ($(CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK), y)
