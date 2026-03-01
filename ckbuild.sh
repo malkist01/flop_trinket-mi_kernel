@@ -257,7 +257,7 @@ else
     CK_TYPE="Vanilla"
     CK_TYPE_SHORT="V"
 fi
-ZIP_PATH="$WP/Floppy_$FK_VER-$CK_TYPE-$CODENAME-$DATE.zip"
+ZIP_PATH="$WP/AnjaniLaurens_$FK_VER-$CK_TYPE-$CODENAME-$DATE.zip"
 
 echo -e "\nINFO: Build info:
 - Device: $DEVICE ($CODENAME)
@@ -558,7 +558,7 @@ CAPTION_BUILD="Build info:
 # Functions to send file(s) via Telegram's BOT api.
 tgs() {
     MD5=$(md5sum "$1" | cut -d' ' -f1)
-    curl -fsSL -X POST -F document=@"$1" https://api.telegram.org/bot7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI/sendDocument \
+    curl -fsSL -X POST -F document=@"${ZIP_PATH}" https://api.telegram.org/bot7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI/sendDocument \
         -F chat_id=-1002287610863" \
         -F parse_mode=Markdown" \
         -F disable_web_page_preview=true" \
