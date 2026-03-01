@@ -38,13 +38,14 @@ permissions:
   contents: write
 
 env:
+  TZ: Asia/Jakarta
   # --- CORE DIRECTORIES ---
   TOOLCHAIN_DIR: ${{ github.workspace }}/toolchains/custom-toolchain
   CCACHE_DIR: "/home/runner/.ccache"
   WP: ${{ github.workspace }} # CRITICAL: Required by do_build.sh
   
   # --- PERFORMANCE & TUNING ---
-  CCACHE_SIZE: "12G"
+  CCACHE_SIZE: "16G"
   CCACHE_COMPRESS: "1"
   USE_CCACHE: 1
   
@@ -126,7 +127,7 @@ jobs:
           echo "::endgroup::"
 
       # 2. RESOURCE AUGMENTATION
-      - name: 🧠 Swap Injection (12GB)
+      - name: 🧠 Swap Injection (16GB)
         run: |
           export SWAP_FILE=$(swapon --show=NAME | tail -n 1)
           sudo swapoff $SWAP_FILE
