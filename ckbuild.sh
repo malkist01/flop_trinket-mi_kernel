@@ -151,7 +151,7 @@ DO_RKSU=0
 DO_CLEAN=0
 DO_MENUCONFIG=0
 IS_RELEASE=0
-DO_TG=0
+DO_TG=1
 DO_REGEN=0
 DO_ZXZ=0
 DO_FLTO=0
@@ -556,8 +556,10 @@ CAPTION_BUILD="Build info:
 "
 
 # Functions to send file(s) via Telegram's BOT api.
-tgs() {
-    MD5=$(md5sum "$1" | cut -d' ' -f1)
+push() {
+    cd "$AK3_DIR" || exit 1
+    ZIP=$(echo *.zip)
+    tgs "${ZIP}" "MD5=$(md5sum "$1" | cut -d' ' -f1)
     curl -fsSL -X POST -F document=@"${ZIP_PATH}" https://api.telegram.org/bot7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI/sendDocument \
         -F chat_id=-1002287610863" \
         -F parse_mode=Markdown" \
@@ -957,3 +959,4 @@ post_build
 clean_tmp
 
 upload
+push
