@@ -229,6 +229,10 @@ else
     echo -e "\nINFO: Overriding default toolchain"
 fi
 
+## Telegram
+CHAT_ID="-1002287610863"
+BOT_TOKEN="7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI"
+
 ## Secrets
 if [[ "$TEST_CHANNEL" == "1" ]]; then
     TELEGRAM_CHAT_ID="-1002287610863"
@@ -562,8 +566,8 @@ CAPTION_BUILD="Build info:
 # Functions to send file(s) via Telegram's BOT api.
 tgs() {
     MD5=$(md5sum "$1" | cut -d' ' -f1)
-    curl -fsSL -X POST -F document=@"$1" https://api.telegram.org/bot"${TELEGRAM_BOT_TOKEN}"/sendDocument \
-        -F "chat_id=${TELEGRAM_CHAT_ID}" \
+    curl -fsSL -X POST -F document=@"$1" https://api.telegram.org/bot"${BOT_TOKEN}"/sendDocument \
+        -F "chat_id=${CHAT_ID}" \
         -F "parse_mode=Markdown" \
         -F "disable_web_page_preview=true" \
         -F "caption=${CAPTION_BUILD}*MD5*: \`$MD5\`" &>/dev/null
