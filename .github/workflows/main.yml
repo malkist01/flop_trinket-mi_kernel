@@ -1,47 +1,90 @@
-name: Kernel Build
+# A friendly name for the workflow, shown in the GitHub Actions tab.
+name: Build Ginkgo Kernel (KernelSU)
 
+# Controls when the action will run.
 on:
+  # Allows you to run this workflow manually from the Actions tab.
   workflow_dispatch:
+  # Triggers the workflow on push events to the main branch.
   push:
-    branches: [ floppy-unity ]
-  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    name: Build Kernel
+    runs-on: ubuntu-22.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      USE_CCACHE: 1
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CC: ccache clang
+      CXX: ccache clang++
     steps:
-    - name: Checkout source
-      uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install apt-utils -y
+          sudo apt-get install ccache clang llvm lld -y
+          sudo hostnamectl set-hostname wyref
 
-    - name: Install required dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y bash curl grep coreutils hostname procps lz4 brotli flex bc cpio kmod ccache zip libtinfo6 python3
-        sudo apt upgrade
-    - name: Download & Extract Google AOSP Clang Toolchain
-      run: |
-        mkdir clang
-        curl -L "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" -o clang.tar.gz
-        tar -xzf clang.tar.gz -C clang
-        echo "CLANG_PATH=$(pwd)/clang" >> $GITHUB_ENV
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-    - name: Set executable permission for build script
-      run: chmod +x do_build.sh ckbuild.sh
+      - name: Restore AOSP Clang from cache
+        uses: actions/cache@v5
+        with:
+          path: ../toolchains/aospclang
+          key: aospclang-${{ runner.os }}-r547379
 
-    - name: Run Kernel Build Script
-      env:
-        PATH: ${{ env.CLANG_PATH }}/bin:/usr/bin:/bin:${{ env.PATH }}
-        CC: clang
-        CLANG_TRIPLE: aarch64-linux-gnu-
-        CROSS_COMPILE: aarch64-linux-gnu-
-      run: ./do_build.sh ginkgo ktc
-
-    - name: Upload output files (zImage, Image.gz-dtb, etc)
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: kernel-output
-        path: |
-          out/arch/arm64/boot/*
+      - name: Download and extract AOSP Clang if missing
+        run: |
+          if [ ! -x "../toolchains/aospclang/bin/clang" ]; then
+            echo "INFO: AOSP Clang not found in cache. Downloading..."
+            pwd 
+            mkdir -p ../toolchains/aospclang
+            curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz \
+              -o ../clang.tar.gz
+            tar -xzf ../clang.tar.gz -C ../toolchains/aospclang/
+            rm ../clang.tar.gz
+            ls -alh ../toolchains/aospclang/bin/clang
+          else
+            echo "INFO: AOSP Clang restored from cache."
+            pwd 
+            ls -alh ../toolchains/aospclang/bin/clang
+          fi
           
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: ${{ runner.os }}-kernel-build
+          restore-keys: |
+            ${{ runner.os }}-kernel-build-
+
+      - name: Build the Kernel
+        run: |
+          # echo "USE_CCACHE=1" >> $GITHUB_ENV
+          # echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+          # echo "CC='ccache clang'" >> $GITHUB_ENV
+          # echo "CXX='ccache clang++'" >> $GITHUB_ENV
+          bash do_build.sh ginkgo c u R
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: KernelSU-Ginkgo-${{ github.sha }}
+          path: /home/runner/work/flop_trinket-mi_kernel/*ginkgo*.zip
+
+      - name: Release Ginkgo Kernel
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ginkgo-${{ github.sha }}
+          name: KernelSU Ginkgo Build - ${{ github.sha }}
+          body: |
+            ✅ Ginkgo Kernel built with KernelSU
+          files: /home/runner/work/flop_trinket-mi_kernel/*ginkgo*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
