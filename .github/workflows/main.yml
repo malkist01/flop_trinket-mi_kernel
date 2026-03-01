@@ -1,4 +1,4 @@
-name: FloppyKernel – Build Matrix
+name: AnjaniLaurens Kernel
 
 on:
   workflow_dispatch:
