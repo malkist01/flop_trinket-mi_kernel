@@ -1,0 +1,47 @@
+name: Kernel Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ floppy-unity ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Install required dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y bash curl grep coreutils hostname procps lz4 brotli flex bc cpio kmod ccache zip libtinfo6 python3
+        sudo apt upgrade
+    - name: Download & Extract Google AOSP Clang Toolchain
+      run: |
+        mkdir clang
+        curl -L "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" -o clang.tar.gz
+        tar -xzf clang.tar.gz -C clang
+        echo "CLANG_PATH=$(pwd)/clang" >> $GITHUB_ENV
+
+    - name: Set executable permission for build script
+      run: chmod +x do_build.sh ckbuild.sh
+
+    - name: Run Kernel Build Script
+      env:
+        PATH: ${{ env.CLANG_PATH }}/bin:/usr/bin:/bin:${{ env.PATH }}
+        CC: clang
+        CLANG_TRIPLE: aarch64-linux-gnu-
+        CROSS_COMPILE: aarch64-linux-gnu-
+      run: ./do_build.sh ginkgo ktc
+
+    - name: Upload output files (zImage, Image.gz-dtb, etc)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-output
+        path: |
+          out/arch/arm64/boot/*
+          
