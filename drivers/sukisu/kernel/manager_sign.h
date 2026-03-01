@@ -45,6 +45,7 @@
 #define EXPECTED_SIZE_ENJOY 0x31c
 #define EXPECTED_HASH_ENJOY                                                  \
 	"1ab6077099505a4f5ff851732d5d965a4908af7f60c871f23b4b3a58e80e6cd3"
+
 // Dynamic Sign
 #define EXPECTED_SIZE_OTHER 0x300
 #define EXPECTED_HASH_OTHER                                                    \
