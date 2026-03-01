@@ -20,7 +20,7 @@ RV_REPO="https://api.github.com/repos/Rv-Project/RvClang/releases/latest"
 GCC_REPO="https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9"
 GCC64_REPO="https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9"
 # AnyKernel3
-AK3_URL="https://github.com/Flopster101/AnyKernel3"
+AK3_URL="https://github.com/malkist01/AnyKernel2"
 
 # Device fragments
 GINKGO_FRAGMENT="vendor/ginkgo.config"
@@ -38,19 +38,19 @@ shift
 # Set device-specific variables
 case "$TARGET_DEVICE" in
     ginkgo)
-        AK3_BRANCH="floppy-reborn"
+        AK3_BRANCH="unified"
         DEVICE="Redmi Note 8/8T"
         CODENAME="ginkgo"
         FRAGMENT="$GINKGO_FRAGMENT"
         ;;
     laurel_sprout)
-        AK3_BRANCH="floppy-reborn-laurel"
+        AK3_BRANCH="unified"
         DEVICE="Xiaomi Mi A3"
         CODENAME="laurel_sprout"
         FRAGMENT="$LAUREL_FRAGMENT"
         ;;
     mitrinket)
-        AK3_BRANCH="floppy-unity"
+        AK3_BRANCH="unified"
         DEVICE="Redmi Note 8/8T and Xiaomi Mi A3"
         CODENAME="mitrinket"
         FRAGMENT="vendor/unified.config"
