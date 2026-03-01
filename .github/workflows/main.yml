@@ -381,8 +381,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="FloppyKernel-${{ github.run_number }}-$(date -u +%Y%m%d)"
-          TITLE="Floppy Kernel CI • Build ${{ github.run_number }}"
+          TAG="AnjaniLaurens-${{ github.run_number }}-$(date -u +%Y%m%d)"
+          TITLE="AnjaniLaurens Kernel CI • Build ${{ github.run_number }}"
           
           NOTES="Automated Build
           - **Date**: $(date -u)
