@@ -90,7 +90,14 @@ BASE_FRAGMENT="vendor/xiaomi-trinket.config"
 KERNEL_URL="https://github.com/Flopster101/flop_ginkgo_kernel"
 SECONDS=0 # builtin bash timer
 DATE="$(date '+%Y%m%d-%H%M')"
-BUILD_HOST="$USER@$(hostname)"
+BUILD_HOST="android@phone"
+KERNEL_NAME="AnjaniLaurens"
+MD5_HASH=$(md5sum "$ZIP_PATH" | awk '{print $1}')
+# =============== DATE (WIB) ===============
+DATE_TITLE=$(TZ=Asia/Jakarta date +"%d%m%Y")
+TIME_TITLE=$(TZ=Asia/Jakarta date +"%H%M%S")
+BUILD_DATETIME=$(TZ=Asia/Jakarta date +"%d %B %Y")
+BUILD_TIME="$((DIFF / 60)) min $((DIFF % 60)) sec"
 # Paths
 TC_DIR="$WP/toolchains"
 SD_DIR="$TC_DIR/sdclang"
@@ -235,6 +242,8 @@ BOT_TOKEN="7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI"
 
 ## Build type
 LINUX_VER=$(make kernelversion 2>/dev/null)
+CLANG_VER=$(clang --version | head -n1)
+TC_INFO="Clang (${CLANG_VER})"
 
 if [[ "$IS_RELEASE" == "1" ]]; then
     BUILD_TYPE="Release"
@@ -550,13 +559,20 @@ tgs() {
         -F chat_id=-1002287610863" \
         -F parse_mode=Markdown" \
         -F caption="Build info:
-*📱 Device*: \`${DEVICE} [${CODENAME}]\`
-*🪷 Kernel Version*: \`${LINUX_VER}\`
-*🔨 Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*💻 Build host*: \`${BUILD_HOST}\`
-*🚦 Commit / Branch*: [($(git rev-parse HEAD | cut -c -7))]($(echo $KERNEL_URL)/commit/$(git rev-parse HEAD)) / \`$(git rev-parse --abbrev-ref HEAD)\`
-*🛠️ Build variant*: \`${CK_TYPE}\` / \`${BUILD_TYPE}$( [ "$DO_CLEAN" -eq 1 ] && echo " (clean)" || echo " (dirty)")\`
-*📆 Timestamp*: \`${DATE}\`
+📱 *Device* : ${DEVICE}
+📦 *Kernel Name* : ${KERNEL_NAME}
+🍃 *Kernel Version* : ${LINUX_VER}
+
+🛠 *Toolchain* : ${KBUILD_COMPILER_STRING}
+
+💻 *Build host*: ${BUILD_HOST}
+🛠️ *Build variant*: ${CK_TYPE}
+
+⌛ *Build Time* : ${BUILD_TIME}
+🕒 *Build Date* : ${BUILD_DATETIME}
+
+🔐 *MD5* :
+\`${MD5_HASH}\`
 "
 }
 
