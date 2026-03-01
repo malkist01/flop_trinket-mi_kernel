@@ -92,11 +92,12 @@ SECONDS=0 # builtin bash timer
 DATE="$(date '+%Y%m%d-%H%M')"
 BUILD_HOST="android@phone"
 KERNEL_NAME="AnjaniLaurens"
-MD5_HASH=$(md5sum "$ZIP_PATH" | awk '{print $1}')
 # =============== DATE (WIB) ===============
 DATE_TITLE=$(TZ=Asia/Jakarta date +"%d%m%Y")
 TIME_TITLE=$(TZ=Asia/Jakarta date +"%H%M%S")
 BUILD_DATETIME=$(TZ=Asia/Jakarta date +"%d %B %Y")
+BUILD_END=$(TZ=Asia/Jakarta date +%s)
+DIFF=$((BUILD_END - BUILD_START))
 BUILD_TIME="$((DIFF / 60)) min $((DIFF % 60)) sec"
 # Paths
 TC_DIR="$WP/toolchains"
@@ -242,8 +243,6 @@ BOT_TOKEN="7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI"
 
 ## Build type
 LINUX_VER=$(make kernelversion 2>/dev/null)
-CLANG_VER=$(clang --version | head -n1)
-TC_INFO="Clang (${CLANG_VER})"
 
 if [[ "$IS_RELEASE" == "1" ]]; then
     BUILD_TYPE="Release"
@@ -551,6 +550,9 @@ prep_toolchain() {
 install_deps_deb
 get_toolchain "$CLANG_TYPE"
 prep_toolchain "$CLANG_TYPE"
+CLANG_VER=$(clang --version | head -n1)
+TC_INFO="Clang (${CLANG_VER})"
+PHONE="Redmi Note 8/8T"
 
 # Functions to send file(s) via Telegram's BOT api.
 tgs() {
@@ -559,20 +561,17 @@ tgs() {
         -F chat_id=-1002287610863" \
         -F parse_mode=Markdown" \
         -F caption="Build info:
-📱 *Device* : ${DEVICE}
+📱 *Device* : ${PHONE}
 📦 *Kernel Name* : ${KERNEL_NAME}
 🍃 *Kernel Version* : ${LINUX_VER}
 
-🛠 *Toolchain* : ${KBUILD_COMPILER_STRING}
+🛠 *Toolchain* : ${TC_INFO}
 
 💻 *Build host*: ${BUILD_HOST}
 🛠️ *Build variant*: ${CK_TYPE}
 
 ⌛ *Build Time* : ${BUILD_TIME}
 🕒 *Build Date* : ${BUILD_DATETIME}
-
-🔐 *MD5* :
-\`${MD5_HASH}\`
 "
 }
 
