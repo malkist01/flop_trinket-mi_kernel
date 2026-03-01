@@ -575,7 +575,7 @@ prep_build() {
         echo "INFO: ccache enabled"
         if [[ "$IS_GP" == "1" ]]; then
             export CCACHE_DIR="$WP/.ccache"
-            ccache -M 10G
+            ccache -M 16G
         else
             echo "WARNING: Environment is not Gitpod, please make sure you setup your own ccache configuration!"
         fi
