@@ -257,7 +257,7 @@ else
     CK_TYPE="Vanilla"
     CK_TYPE_SHORT="V"
 fi
-ZIP_PATH="$WP/AnjaniLaurens_$FK_VER-$CK_TYPE-$CODENAME-$DATE.zip"
+ZIP_PATH="$WP/AnjaniLaurens$FK_VER-$CK_TYPE-$CODENAME-$DATE.zip"
 
 echo -e "\nINFO: Build info:
 - Device: $DEVICE ($CODENAME)
