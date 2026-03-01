@@ -230,12 +230,12 @@ else
 fi
 
 ## Secrets
-if [[ "$TEST_CHANNEL" == "0" ]]; then
-    TELEGRAM_CHAT_ID="$(cat ../chat)"
+if [[ "$TEST_CHANNEL" == "1" ]]; then
+    TELEGRAM_CHAT_ID="-1002287610863"
 elif [[ "$TEST_CHANNEL" == "1" ]]; then
-    TELEGRAM_CHAT_ID="$(cat ../chat_test)"
+    TELEGRAM_CHAT_ID="-1002287610863"
 fi
-TELEGRAM_BOT_TOKEN="$(cat ../bot_token)"
+TELEGRAM_BOT_TOKEN="7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI"
 
 ## Build type
 LINUX_VER=$(make kernelversion 2>/dev/null)
