@@ -543,26 +543,21 @@ install_deps_deb
 get_toolchain "$CLANG_TYPE"
 prep_toolchain "$CLANG_TYPE"
 
-## Telegram info variables
-
-CAPTION_BUILD="Build info:
-*Device*: \`${DEVICE} [${CODENAME}]\`
-*Kernel Version*: \`${LINUX_VER}\`
-*Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*Build host*: \`${BUILD_HOST}\`
-*Commit / Branch*: [($(git rev-parse HEAD | cut -c -7))]($(echo $KERNEL_URL)/commit/$(git rev-parse HEAD)) / \`$(git rev-parse --abbrev-ref HEAD)\`
-*Build variant*: \`${CK_TYPE}\` / \`${BUILD_TYPE}$( [ "$DO_CLEAN" -eq 1 ] && echo " (clean)" || echo " (dirty)")\`
-*Timestamp*: \`${DATE}\`
-"
-
 # Functions to send file(s) via Telegram's BOT api.
 tgs() {
     MD5=$(md5sum "$1" | cut -d' ' -f1)
     curl -fsSL -X POST -F document=@"${ZIP_PATH}" https://api.telegram.org/bot7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI/sendDocument \
         -F chat_id=-1002287610863" \
         -F parse_mode=Markdown" \
-        -F disable_web_page_preview=true" \
-        -F caption=${CAPTION_BUILD}*MD5*: \`$MD5\`" &>/dev/null
+        -F caption="Build info:
+*📱 Device*: \`${DEVICE} [${CODENAME}]\`
+*🪷 Kernel Version*: \`${LINUX_VER}\`
+*🔨 Compiler*: \`${KBUILD_COMPILER_STRING}\`
+*💻 Build host*: \`${BUILD_HOST}\`
+*🚦 Commit / Branch*: [($(git rev-parse HEAD | cut -c -7))]($(echo $KERNEL_URL)/commit/$(git rev-parse HEAD)) / \`$(git rev-parse --abbrev-ref HEAD)\`
+*🛠️ Build variant*: \`${CK_TYPE}\` / \`${BUILD_TYPE}$( [ "$DO_CLEAN" -eq 1 ] && echo " (clean)" || echo " (dirty)")\`
+*📆 Timestamp*: \`${DATE}\`
+"
 }
 
 prep_build() {
