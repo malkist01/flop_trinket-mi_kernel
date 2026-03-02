@@ -96,9 +96,7 @@ KERNEL_NAME="AnjaniLaurens"
 DATE_TITLE=$(TZ=Asia/Jakarta date +"%d%m%Y")
 TIME_TITLE=$(TZ=Asia/Jakarta date +"%H%M%S")
 BUILD_DATETIME=$(TZ=Asia/Jakarta date +"%d %B %Y")
-BUILD_END=$(TZ=Asia/Jakarta date +%s)
-DIFF=$((BUILD_END - BUILD_START))
-BUILD_TIME="$((DIFF / 60)) min $((DIFF % 60)) sec"
+
 # Paths
 TC_DIR="$WP/toolchains"
 SD_DIR="$TC_DIR/sdclang"
@@ -561,17 +559,17 @@ tgs() {
         -F chat_id=-1002287610863" \
         -F parse_mode=Markdown" \
         -F caption="Build info:
-📱 *Device* : ${PHONE}
-📦 *Kernel Name* : ${KERNEL_NAME}
-🍃 *Kernel Version* : ${LINUX_VER}
+📱 Device : ${PHONE}
+📦 Kernel Name : ${KERNEL_NAME}
+🍃 Kernel Version : ${LINUX_VER}
 
-🛠 *Toolchain* : ${TC_INFO}
+🛠 Toolchain : ${TC_INFO}
 
-💻 *Build host*: ${BUILD_HOST}
-🛠️ *Build variant*: ${CK_TYPE}
+💻 Build host: ${BUILD_HOST}
+🛠️ Build variant: ${CK_TYPE}
 
-⌛ *Build Time* : ${BUILD_TIME}
-🕒 *Build Date* : ${BUILD_DATETIME}
+⌛ Build Time : ${BUILD_TIME}
+🕒 Build Date : ${BUILD_DATETIME}
 "
 }
 
@@ -664,6 +662,7 @@ build() {
 
     ## Start the build
     echo -e "\nINFO: Starting compilation...\n"
+    BUILD_START=$(TZ=Asia/Jakarta date +%s)
 
     if [[ "$USE_CCACHE" == "1" ]]; then
         make -j$(nproc --all) O=out \
@@ -935,6 +934,10 @@ upload() {
     # Delete any leftover zip files
     # rm -f "$WP/FloppyKernel*zip"
 }
+
+BUILD_END=$(TZ=Asia/Jakarta date +%s)
+DIFF=$((BUILD_END - BUILD_START))
+BUILD_TIME="$((DIFF / 60)) min $((DIFF % 60)) sec"
 
 clean() {
     make O=out clean
