@@ -14,6 +14,7 @@ SD_BRANCH="14"
 PC_REPO="https://github.com/kdrag0n/proton-clang"
 LZ_REPO="https://gitlab.com/Jprimero15/lolz_clang.git"
 RC_URL="https://github.com/kutemeikito/RastaMod69-Clang/releases/download/RastaMod69-Clang-20.0.0-release/RastaMod69-Clang-20.0.0.tar.gz"
+GOC_URL="https://github.com/bachnxuan/aosp_clang_mirror/releases/download/clang-r584948b-14726520/clang-r584948b.tar.gz"
 GC_REPO="https://api.github.com/repos/greenforce-project/greenforce_clang/releases/latest"
 ZC_REPO="https://raw.githubusercontent.com/ZyCromerZ/Clang/refs/heads/main/Clang-main-link.txt"
 RV_REPO="https://api.github.com/repos/Rv-Project/RvClang/releases/latest"
@@ -98,6 +99,7 @@ TIME_TITLE=$(TZ=Asia/Jakarta date +"%H%M%S")
 BUILD_DATETIME=$(TZ=Asia/Jakarta date +"%d %B %Y")
 
 # Paths
+GOC_DIR="$TC_DIR/googleclang"
 TC_DIR="$WP/toolchains"
 SD_DIR="$TC_DIR/sdclang"
 AC_DIR="$TC_DIR/aospclang"
@@ -230,7 +232,7 @@ LOG_UPLOAD=1
 
 # Pick aosp, proton, rm69, lolz, slim, greenforce, zyc, rv, custom
 if [[ -z "$CLANG_TYPE" ]]; then
-    CLANG_TYPE="aosp"
+    CLANG_TYPE="google"
 else
     echo -e "\nINFO: Overriding default toolchain"
 fi
@@ -346,6 +348,26 @@ get_toolchain() {
                 fi
                 rm -f "$WP/RastaMod69-clang.tar.gz"
                 echo "INFO: RastaMod69 Clang successfully cloned to $toolchain_dir"
+            fi
+            ;;
+        google)
+            toolchain_dir="$GOC_DIR"
+            if [[ ! -d "$toolchain_dir" ]]; then
+                echo "INFO: Google Clang not found! Cloning to $toolchain_dir..."
+                wget -q --show-progress "$GOC_URL" -O "$WP/clang-r584948b.tar.gz"
+                if [[ $? -ne 0 ]]; then
+                    echo "ERROR: Download failed! Aborting..."
+                    rm -f "$WP/clang-r584948b.tar.gz"
+                    exit 1
+                fi
+                rm -rf clang && mkdir -p "$toolchain_dir" && tar -xf "$WP/clang-r584948b.tar.gz" -C "$toolchain_dir"
+                if [[ $? -ne 0 ]]; then
+                    echo "ERROR: Extraction failed! Aborting..."
+                    rm -f "$WP/clang-r584948b.tar.gz"
+                    exit 1
+                fi
+                rm -f "$WP/clang-r584948b.tar.gz"
+                echo "INFO: google Clang successfully cloned to $toolchain_dir"
             fi
             ;;
         lolz)
@@ -489,6 +511,10 @@ prep_toolchain() {
         aosp)
             toolchain_dir="$AC_DIR"
             echo "INFO: Toolchain: AOSP Clang"
+            ;;
+        google)
+            toolchain_dir="$GOC_DIR"
+            echo "INFO: Toolchain: Google Clang"
             ;;
         sdclang)
             toolchain_dir="$SD_DIR/compiler"
