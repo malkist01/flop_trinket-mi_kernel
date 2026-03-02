@@ -549,7 +549,7 @@ install_deps_deb
 get_toolchain "$CLANG_TYPE"
 prep_toolchain "$CLANG_TYPE"
 CLANG_VER=$("$toolchain_dir/"$AC_DIR"/bin/clang" -v 2>&1 | head -n 1)
-TC_INFO="${CLANG_VER}"
+TC_INFO="${KBUILD_COMPILER_STRING}"
 PHONE="Redmi Note 8/8T"
 
 # Functions to send file(s) via Telegram's BOT api.
