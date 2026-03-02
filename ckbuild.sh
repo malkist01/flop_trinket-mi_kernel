@@ -575,7 +575,7 @@ install_deps_deb
 get_toolchain "$CLANG_TYPE"
 prep_toolchain "$CLANG_TYPE"
 TC_INFO=$(clang --version | head -n 1)
-LLD_INFO=$(ld.lld --version | head -n 1)
+LLVM_INFO=$(llvm --version | head -n 1)
 PHONE="Redmi Note 8/8T"
 
 # Functions to send file(s) via Telegram's BOT api.
@@ -590,7 +590,7 @@ tgs() {
 🍃 Kernel Version : ${LINUX_VER}
 
 🔧 Toolchain : ${TC_INFO}
-⚙️ Lld ver : ${LLD_VERSION}
+⚙️ Llvm Version : ${LLVM_VERSION}
 
 💻 Build host: ${BUILD_HOST}
 🛠️ Build variant: ${CK_TYPE}
