@@ -232,7 +232,7 @@ LOG_UPLOAD=1
 
 # Pick aosp, proton, rm69, lolz, slim, greenforce, zyc, rv, custom
 if [[ -z "$CLANG_TYPE" ]]; then
-    CLANG_TYPE="greenforce"
+    CLANG_TYPE="zyc"
 else
     echo -e "\nINFO: Overriding default toolchain"
 fi
@@ -575,7 +575,7 @@ install_deps_deb
 get_toolchain "$CLANG_TYPE"
 prep_toolchain "$CLANG_TYPE"
 TC_INFO=$(clang --version | head -n 1)
-LLVM_INFO=$(llvm --version | head -n 1)
+LLVM_INFO=$(llvm-config --version | head -n 1)g
 PHONE="Redmi Note 8/8T"
 
 # Functions to send file(s) via Telegram's BOT api.
