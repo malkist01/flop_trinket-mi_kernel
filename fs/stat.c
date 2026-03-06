@@ -382,13 +382,6 @@ extern void ksu_handle_fstat64_ret(unsigned long *fd, struct stat64 __user **sta
 #endif
 #endif
 
-#ifdef CONFIG_KSU_SUSFS
-#ifdef CONFIG_KSU_SUKI
-extern bool ksu_init_rc_hook __read_mostly;
-extern void ksu_handle_sys_newfstatat(int fd, loff_t *kstat_size_ptr);
-#endif
-#endif // #ifdef CONFIG_KSU_SUSFS
-
 #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
 SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 		struct stat __user *, statbuf, int, flag)
@@ -402,13 +395,6 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
 		return error;
-#ifdef CONFIG_KSU_SUSFS
-#ifdef CONFIG_KSU_SUKI
-	if (unlikely(ksu_init_rc_hook)) {
-		ksu_handle_sys_newfstatat(dfd, &stat.size);
-	}
-#endif
-#endif // #ifdef CONFIG_KSU_SUSFS
 	return cp_new_stat(&stat, statbuf);
 }
 #endif
